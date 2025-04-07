@@ -1,0 +1,13 @@
+[project]
+name = "fast-curate"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "numba>=0.61.0",
+    "pandas>=2.2.3",
+    "pyqt6>=6.8.1",
+    "pyqtgraph>=0.13.7",
+    "spikeinterface>=0.102.2",
+]
