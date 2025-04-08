@@ -1,29 +1,26 @@
 """
     Controls the visualisation. All the GUI stuff!
 """
-
-import pandas as pd
 import sys
-import PyQt6.QtWidgets as QtWidgets
-import numpy as np
-import pyqtgraph as pg
-import spikeinterface.full as si
-
 from pathlib import Path
 from argparse import ArgumentParser
 
+import pandas as pd
+import PyQt6.QtWidgets as QtWidgets
+import numpy as np
+import pyqtgraph as pg
+
+import spikeinterface.full as si
 from wrangle import DataForGUI
 
 pg.setConfigOption('background', 'w')
 
-save_folder = ""
 color_1 = (78, 121, 167)
 color_2 = (242, 142, 43)
 color_3 = (89, 161, 79)
 
 def check_labels(labels):
     first_letters = [label[0] for label in labels]
-    print(first_letters)
     assert len(set(first_letters)) == len(first_letters), "Your labels must start with different letters"
     assert 'u' not in first_letters, "The key 'u' is reserved for (u)ndo. Please use a label which does not begin with 'u'"
     assert 'q' not in first_letters, "The key 'q' is reserved for (q)uit. Please use a label which does not begin with 'w'"
@@ -52,17 +49,32 @@ def main():
     
     assert Path(args.analyzer_path).is_dir(), "`analyzer_path` must be a directory."
     check_labels(args.labels)
+
     assert Path(args.output_folder).is_dir(), "`output_folder` must be a directory."
 
+    print(f"Your labels are {args.labels}. Your keystroke options are:\n\n\tq: quit\n\tu: undo")
+    for label in args.labels:
+        print(f"\t{label[0]}: {label}")
+
+    print("\nLoading data...")
+    have_extension = {}
     sorting_analyzer = si.load_sorting_analyzer(args.analyzer_path, load_extensions=False)
-    for extension in ['correlograms', 'unit_locations', 'templates', 'spike_amplitudes', 'quality_metrics', 'template_metrics']:
+    missing_an_extension=False
+    for extension in ['correlograms', 'unit_locations', 'templates', 'spike_amplitudes', 'spike_locations', 'quality_metrics', 'template_metrics']:
+        have_extension[extension] = True
         try:
             sorting_analyzer.load_extension(extension)
         except:
-            print(f"No {extension} found. Will not display certain plots.") 
+            if missing_an_extension is False:
+                print("")
+            missing_an_extension=True
+            have_extension[extension] = False
+            print(f"    - No {extension} found. Will not display certain plots.") 
+    if missing_an_extension:
+        print("")
 
     app = QtWidgets.QApplication(sys.argv)
-    window = MainWindow(sorting_analyzer, args.labels, args.output_folder)
+    window = MainWindow(sorting_analyzer, args.labels, args.output_folder, have_extension)
     window.resize(1600, 800)
     window.show()
 
@@ -70,9 +82,10 @@ def main():
 
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self, sorting_analyzer, labels, output_folder):
+    def __init__(self, sorting_analyzer, labels, output_folder, have_extension):
 
-        self.data = DataForGUI(sorting_analyzer)
+        self.have_extension = have_extension
+        self.data = DataForGUI(sorting_analyzer, have_extension)
         self.fs = sorting_analyzer.sampling_frequency
         self.first_letters = [label[0] for label in labels]
         self.output_folder = output_folder
@@ -121,6 +134,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         layout.addWidget(self.amp_raster_widget, 2, 0, 1, 2)
         layout.addWidget(self.binned_spikes_widget, 2, 3)
+
+        print("Starting plot...")
 
         self.initialise_plot()
         self.initialise_choice_df()
@@ -189,10 +204,18 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def update_plot(self, unit_data):
 
-        self.amps_raster_plot.setData(unit_data['spikes']/self.fs, unit_data['amps'])
-        self.locs_raster_plot.setData(unit_data['spikes']/self.fs, unit_data['locs_y'])
+        if self.have_extension["spike_amplitudes"]: 
+            self.amps_raster_plot.setData(unit_data['spikes']/self.fs, unit_data['amps'])
+        if self.have_extension["spike_locations"]:
+            self.locs_raster_plot.setData(unit_data['spikes']/self.fs, unit_data['locs_y'])
+            self.spike_locs_plot.setData(unit_data['locs_x'], unit_data['locs_y'])
 
-        self.max_templates_plot.setData(unit_data['template'])
+        if self.have_extension["templates"]:
+            self.max_templates_plot.setData(unit_data['template'])
+            self.all_templates_widget.clear()
+            self.update_template_plot(
+                unit_data['channel_locations'], unit_data['all_templates'])
+        
         self.binned_spikes_plot.setData(
             unit_data['binned_spikes'])
 
@@ -201,15 +224,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.correlogram_zoom_plot.setData(
             unit_data['wide_bins'][1:], unit_data['wide_correlograms'])
 
-        self.unit_locations_plot_3.setData([unit_data['unit_location'][0]], [
+        if self.have_extension["unit_locations"]:
+            self.unit_locations_plot_3.setData([unit_data['unit_location'][0]], [
                                            unit_data['unit_location'][1]])
 
         self.unit_locations_widget.setLabels(title=f"UNIT {self.unit_id} -- Unit location")
-        self.spike_locs_plot.setData(unit_data['locs_x'], unit_data['locs_y'])
 
-        self.all_templates_widget.clear()
-        self.update_template_plot(
-            unit_data['channel_locations'], unit_data['all_templates'])
 
     def update_template_plot(self, channel_locations, all_templates):
 
@@ -282,7 +302,6 @@ class MainWindow(QtWidgets.QMainWindow):
         final_choices_list = []
         for unit_id in curated_ids:
             final_choices_list.append(save_choice_df.query(f'unit_id == {unit_id}').iloc[-1])
-        print(final_choices_list)
         
         keys = save_choice_df.keys()
         final_choices_df = pd.DataFrame(final_choices_list, columns=keys)

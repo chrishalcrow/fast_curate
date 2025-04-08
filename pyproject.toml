@@ -3,8 +3,9 @@ name = "fast-curate"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
+    "numcodecs==0.15.1",
     "numba>=0.61.0",
     "pandas>=2.2.3",
     "pyqt6>=6.8.1",
