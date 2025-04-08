@@ -50,7 +50,10 @@ def main():
     assert Path(args.analyzer_path).is_dir(), "`analyzer_path` must be a directory."
     check_labels(args.labels)
 
-    assert Path(args.output_folder).is_dir(), "`output_folder` must be a directory."
+    output_folder = Path(args.output_folder)
+    assert Path(output_folder.parent).is_dir(), "Parent folder of `output_folder` must already exist."
+    output_folder.mkdir(exist_ok=True)
+
 
     print(f"Your labels are {args.labels}. Your keystroke options are:\n\n\tq: quit\n\tu: undo")
     for label in args.labels:
@@ -274,12 +277,33 @@ class MainWindow(QtWidgets.QMainWindow):
     # SAVING STUFF
 
     def initialise_choice_df(self):
+
+
+        final_result_path = self.output_folder / Path("just_labels.csv")
+        if final_result_path.is_file():
+            yes_no_decision = "banana"
+            while (yes_no_decision in ["y", "n"]) == False:
+                yes_no_decision = input('The `output_folder` already contains labelled output in `just_labels.csv`. Continuing will overwrite this file. Continue? (y/n) ')
+                if yes_no_decision == "n":
+                    sys.exit()
+                elif yes_no_decision == "y":
+                    final_result_path.unlink()
+                    results_with_metrics_path = self.output_folder / Path("decision_data_with_metics.csv")
+                    if results_with_metrics_path.is_file():
+                        results_with_metrics_path.unlink()
+
+
         string_to_write = "index,keystroke,unit_id"
         for key in self.data.metrics.keys():
             string_to_write += f",{key}"
         string_to_write += "\n"
 
-        with open(self.output_folder  / Path("decision_data_cache.csv"), 'w') as decision_file:
+        
+        decision_data_cache_path = self.output_folder  / Path("decision_data_cache.csv")
+        if decision_data_cache_path.is_file():
+            decision_data_cache_path.unlink()
+
+        with open(decision_data_cache_path, 'w') as decision_file:
             decision_file.write(string_to_write)
 
     def save_choice(self, keystroke):
