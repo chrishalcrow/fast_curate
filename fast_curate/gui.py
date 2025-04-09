@@ -179,7 +179,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.unit_locations_plot_1 = self.unit_locations_widget.plot(
             self.data.channel_locations, pen=None, symbol="s", symbolSize=6)
         self.unit_locations_plot_2 = self.unit_locations_widget.plot(
-            self.data.unit_locations, pen=None, symbol="o", symbolSize=6, symbolBrush=(50, 200, 200, 200))
+            pen=None, symbol="o", symbolSize=6, symbolBrush=(50, 200, 200, 200))
         self.unit_locations_plot_3 = self.unit_locations_widget.plot(
             symbol="x", symbolSize=20, symbolBrush=color_2)
         self.unit_locations_widget.setLabels(
