@@ -1,6 +1,12 @@
+"""
+Computations that are done by this package, rather than spikeinterface.
+"""
+
 import numpy as np
 
 def compute_autocorrelograms(spike_times, window_ms, bin_ms, fs):
+    """Compute autocorrelograms. Copied from spikeinterface, originally
+    implemented by Joe Ziminski."""
 
     window_size = int(round(fs*window_ms / 2 * 1e-3))
     bin_size = int(round(fs*bin_ms * 1e-3))

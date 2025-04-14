@@ -11,14 +11,13 @@ from compute import compute_autocorrelograms
 class DataForGUI:
 
     def __init__(self, sorting_analyzer, have_extension):
+        """Extract data from the sorting_analyzer for the curation, and cache in `DataForGUI` object."""
 
         print("Wrangling, caching and computing with data...")
 
         self.merged_units = []
         self.sorting_analyzer = sorting_analyzer
-
         self.unit_ids = deepcopy(sorting_analyzer.unit_ids)
-
         self.total_samples = sorting_analyzer.get_num_samples()
 
         ###############   Get data from sorting analyzer ###############
@@ -29,9 +28,6 @@ class DataForGUI:
         self.spikes = si.spike_vector_to_spike_trains([random_spikes], unit_ids = sorting_analyzer.unit_ids)[0]
 
         self.amps = {}
-        self.locs_x = {}
-        self.locs_y = {}
-        
         if have_extension['spike_amplitudes']:
             amps = sorting_analyzer.get_extension("spike_amplitudes").get_data()
             random_amps = amps[random_spike_indices]
@@ -44,6 +40,15 @@ class DataForGUI:
                 self.amps[unit_id].append(amp)
         amps = None
         
+#        self.locs_x = {}
+#        self.locs_y = {}
+#        locs_data = sorting_analyzer.get_extension("spike_locations").get_data(outputs="by_unit")[0]
+#        for unit_id, locs in locs_data.items():
+#            self.locs_x[unit_id] = locs['x']
+ #           self.locs_y[unit_id] = locs['y']
+
+        self.locs_x = {}
+        self.locs_y = {}
         if have_extension['spike_locations']:
             locs_y = sorting_analyzer.get_extension("spike_locations").get_data()['y']
             locs_x = sorting_analyzer.get_extension("spike_locations").get_data()['x']
@@ -60,20 +65,17 @@ class DataForGUI:
                 self.locs_y[unit_id].append(loc_y)
         locs = None
         
-        self.sparsity_mask = sorting_analyzer.sparsity.mask
         self.channel_locations = sorting_analyzer.get_channel_locations()
-        
         self.unit_xmin = min(self.channel_locations[:, 0])
         self.unit_xmax = max(self.channel_locations[:, 0])
         self.unit_ymin = min(self.channel_locations[:, 1])
         self.unit_ymax = max(self.channel_locations[:, 1])
-
         if have_extension["unit_locations"]:
             self.unit_locations = sorting_analyzer.get_extension(
                 "unit_locations").get_data()[:, 0:2]
         
-        
         if have_extension['templates']:
+            self.sparsity_mask = sorting_analyzer.sparsity.mask
             max_channels = sorting_analyzer.channel_ids_to_indices(
                 si.get_template_extremum_channel(sorting_analyzer).values()
             )
@@ -89,24 +91,11 @@ class DataForGUI:
         else:
             self.templates = {}
             self.all_templates = {}
-
-        quality_metrics = pd.DataFrame()
-        if have_extension['quality_metrics']:
-            quality_metrics = sorting_analyzer.get_extension(
-                "quality_metrics").get_data().astype('float')
         
-        template_metrics = pd.DataFrame()
-        if have_extension['template_metrics']:
-            template_metrics = sorting_analyzer.get_extension(
-                "template_metrics").get_data().astype('float')
-
-        self.metrics = pd.concat([quality_metrics, template_metrics], axis=1)
-
         if have_extension["correlograms"]:
             all_correlograms, bins = sorting_analyzer.get_extension(
                 "correlograms").get_data()
         else:
-
             all_correlograms = {}
             for unit_id in sorting_analyzer.unit_ids:
                 one_corr, bins = compute_autocorrelograms(self.spikes[unit_id], window_ms=50, bin_ms=2, fs=sorting_analyzer.sampling_frequency)
@@ -121,8 +110,22 @@ class DataForGUI:
             wide_correlograms.append(one_wide)
         self.wide_correlograms = wide_correlograms
         self.wide_bins = bins
+ 
+        quality_metrics = pd.DataFrame()
+        if have_extension['quality_metrics']:
+            quality_metrics = sorting_analyzer.get_extension(
+                "quality_metrics").get_data().astype('float')
+        
+        template_metrics = pd.DataFrame()
+        if have_extension['template_metrics']:
+            template_metrics = sorting_analyzer.get_extension(
+                "template_metrics").get_data().astype('float')
+
+        self.metrics = pd.concat([quality_metrics, template_metrics], axis=1)
+
     
     def get_unit_data(self, unit_index):
+        """For a given unit, extract unit data from all data."""
 
         unit_data = {}
 

@@ -1,6 +1,7 @@
 """
     Controls the visualisation. All the GUI stuff!
 """
+
 import sys
 from pathlib import Path
 from argparse import ArgumentParser
@@ -21,12 +22,54 @@ color_3 = (89, 161, 79)
 
 
 def check_labels(labels):
+    """Check that the user-inputted labels are unique and don't shadow special keys."""
     first_letters = [label[0] for label in labels]
     assert len(set(first_letters)) == len(
         first_letters), "Your labels must start with different letters"
     assert 'u' not in first_letters, "The key 'u' is reserved for (u)ndo. Please use a label which does not begin with 'u'"
-    assert 'q' not in first_letters, "The key 'q' is reserved for (q)uit. Please use a label which does not begin with 'w'"
+    assert 'q' not in first_letters, "The key 'q' is reserved for (q)uit. Please use a label which does not begin with 'q'"
 
+def check_and_maybe_delete_labels_file(final_result_path, output_folder):
+    """If the output file of a curation already exists, asks the user if they'd like to delete it or not."""
+
+    if final_result_path.is_file():
+        yes_no_decision = "banana"
+        while (yes_no_decision in ["y", "n"]) == False:
+            yes_no_decision = input(
+                'The `output_folder` already contains labelled output in `just_labels.csv`. Continuing will overwrite this file. Continue? (y/n) ')
+            if yes_no_decision == "n":
+                sys.exit()
+            elif yes_no_decision == "y":
+                final_result_path.unlink()
+                results_with_metrics_path = output_folder / \
+                    Path("decision_data_with_metics.csv")
+                if results_with_metrics_path.is_file():
+                    results_with_metrics_path.unlink()
+                    return
+    else:
+        return
+
+def load_sa_and_extensions(analyzer_path):
+    """Loads the sorting analyzer and it's extensions"""
+
+    print("\nLoading data...")
+    have_extension = {}
+    sorting_analyzer = si.load_sorting_analyzer(analyzer_path, load_extensions=False)
+    missing_an_extension = False
+    for extension in ['correlograms', 'unit_locations', 'templates', 'spike_amplitudes', 'spike_locations', 'quality_metrics', 'template_metrics']:
+        have_extension[extension] = True
+        try:
+            sorting_analyzer.load_extension(extension)
+        except:
+            if missing_an_extension is False:
+                print("")
+            missing_an_extension = True
+            have_extension[extension] = False
+            print(f"    - No {extension} found. Will not display certain plots.")
+    if missing_an_extension:
+        print("")
+
+    return sorting_analyzer, have_extension
 
 def main():
 
@@ -44,63 +87,39 @@ def main():
     )
     parser.add_argument(
         '--output_folder',
-        default='.',
+        default=None,
         help="Path to folder for the labelled output"
     )
 
     args = parser.parse_args()
 
+    analyzer_path = Path(args.analyzer_path)
+
     assert Path(args.analyzer_path).is_dir(
     ), "`analyzer_path` must be a directory."
-    check_labels(args.labels)
 
-    output_folder = Path(args.output_folder)
+    if args.output_folder is None:
+        output_folder = analyzer_path / "curation"
+    else:
+        output_folder = Path(args.output_folder)
+    
     assert Path(output_folder.parent).is_dir(
     ), "Parent folder of `output_folder` must already exist."
     output_folder.mkdir(exist_ok=True)
 
     final_result_path = output_folder / Path("just_labels.csv")
-    if final_result_path.is_file():
-        yes_no_decision = "banana"
-        while (yes_no_decision in ["y", "n"]) == False:
-            yes_no_decision = input(
-                'The `output_folder` already contains labelled output in `just_labels.csv`. Continuing will overwrite this file. Continue? (y/n) ')
-            if yes_no_decision == "n":
-                sys.exit()
-            elif yes_no_decision == "y":
-                final_result_path.unlink()
-                results_with_metrics_path = output_folder / \
-                    Path("decision_data_with_metics.csv")
-                if results_with_metrics_path.is_file():
-                    results_with_metrics_path.unlink()
+    check_and_maybe_delete_labels_file(final_result_path, output_folder)
 
-    print(
-        f"Your labels are {args.labels}. Your keystroke options are:\n\n\tq: quit\n\tu: undo")
+    check_labels(args.labels)
+    print(f"Your labels are {args.labels}. Your keystroke options are:\n\n\tq: quit\n\tu: undo")
     for label in args.labels:
         print(f"\t{label[0]}: {label}")
 
-    print("\nLoading data...")
-    have_extension = {}
-    sorting_analyzer = si.load_sorting_analyzer(
-        args.analyzer_path, load_extensions=False)
-    missing_an_extension = False
-    for extension in ['correlograms', 'unit_locations', 'templates', 'spike_amplitudes', 'spike_locations', 'quality_metrics', 'template_metrics']:
-        have_extension[extension] = True
-        try:
-            sorting_analyzer.load_extension(extension)
-        except:
-            if missing_an_extension is False:
-                print("")
-            missing_an_extension = True
-            have_extension[extension] = False
-            print(
-                f"    - No {extension} found. Will not display certain plots.")
-    if missing_an_extension:
-        print("")
+    sorting_analyzer, have_extension = load_sa_and_extensions(analyzer_path)
 
     app = QtWidgets.QApplication(sys.argv)
     window = MainWindow(sorting_analyzer, args.labels,
-                        args.output_folder, have_extension)
+                        output_folder, have_extension)
     window.resize(1600, 800)
     window.show()
 
@@ -110,19 +129,23 @@ def main():
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, sorting_analyzer, labels, output_folder, have_extension):
 
+        # forward data from the user
         self.have_extension = have_extension
-        self.data = DataForGUI(sorting_analyzer, have_extension)
-        self.fs = sorting_analyzer.sampling_frequency
-        self.first_letters = [label[0] for label in labels]
         self.output_folder = output_folder
-        self.curated_ids = []
+        self.first_letters = [label[0] for label in labels]
 
-        ############### Intialise widgets and do some layout ###############
+        # cache and wrangle data for all plots
+        self.fs = sorting_analyzer.sampling_frequency
+        self.data = DataForGUI(sorting_analyzer, have_extension)
+        
+        # set up unit id and tracking logic
+        self.good_units = sorting_analyzer.unit_ids
+        self.curated_ids = []
         self.decision_counter = 0
         self.id_1_tracker = 0
-        # self.good_units = list(get_good_units(sorting_analyzer).index)
-        self.good_units = sorting_analyzer.unit_ids
         self.unit_id = self.good_units[0]
+
+        # Make window
 
         super().__init__()
 
@@ -135,6 +158,8 @@ class MainWindow(QtWidgets.QMainWindow):
         layout = QtWidgets.QGridLayout()
         widget = QtWidgets.QWidget()
         widget.setLayout(layout)
+
+        # Make widgets and arrange them in a grid.
 
         for a in [0, 1, 2, 3]:
             layout.setColumnStretch(a, 1)
@@ -169,8 +194,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(widget)
 
     def initialise_plot(self):
-
-        unit_data = self.data.get_unit_data(self.unit_id)
+        """Sets up the initial axes/plot styles for all plots, then plots the first unit."""
 
         self.unit_locations_widget.setXRange(
             self.data.unit_xmin, self.data.unit_xmax)
@@ -224,9 +248,11 @@ class MainWindow(QtWidgets.QMainWindow):
             pen=pg.mkPen(color_3, width=2))
         self.all_templates_widget.setLabels(title="Unit templates")
 
+        unit_data = self.data.get_unit_data(self.unit_id)
         self.update_plot(unit_data)
 
     def update_plot(self, unit_data):
+        """Puts data into the plotting widgets."""
 
         if self.have_extension["spike_amplitudes"]:
             self.amps_raster_plot.setData(
@@ -259,6 +285,7 @@ class MainWindow(QtWidgets.QMainWindow):
             title=f"UNIT {self.unit_id} -- Unit location")
 
     def update_template_plot(self, channel_locations, all_templates):
+        """All templates plot is bit awkward, so factor out the messiness into a function. This function!"""
 
         template_channels_locs_1 = channel_locations[self.data.sparsity_mask[self.unit_id]]
 
@@ -269,7 +296,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     # USER LOGIC
 
-    def keyPressEvent(self, event):  # Checks if a specific key was pressed
+    def keyPressEvent(self, event): 
 
         keystroke = event.text()
 
@@ -287,16 +314,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.save_choice(keystroke)
 
         self.unit_id = self.good_units[self.id_1_tracker]
-        self.unit_ids_updated()
-
-    def unit_ids_updated(self):
-
         unit_data = self.data.get_unit_data(self.unit_id)
         self.update_plot(unit_data)
 
     # SAVING STUFF
 
     def initialise_choice_df(self):
+        """Make the initial `.csv` output file with appropriate column names."""
 
         string_to_write = "index,keystroke,unit_id"
         for key in self.data.metrics.keys():
@@ -312,6 +336,7 @@ class MainWindow(QtWidgets.QMainWindow):
             decision_file.write(string_to_write)
 
     def save_choice(self, keystroke):
+        """Add the user decision, including undo, to cache csv."""
 
         string_to_write = f"{self.decision_counter},{keystroke},{self.unit_id}"
         for values in self.data.metrics.iloc[self.unit_id].values:
@@ -324,6 +349,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.decision_counter += 1
 
     def save_labels(self):
+        """Converts the user decision cache into an output labels csv."""
 
         curated_ids = np.unique(self.curated_ids)
         save_choice_df = pd.read_csv(
@@ -346,9 +372,10 @@ class MainWindow(QtWidgets.QMainWindow):
                            Path("just_labels.csv"), index=False)
 
     def closeEvent(self, event):
+        """Intercepts the user closing the app, to save the labels."""
         print("Saving final curation...")
         self.save_labels()
-        event.accept()  # let the window close
+        event.accept()
 
 
 if __name__ == '__main__':
