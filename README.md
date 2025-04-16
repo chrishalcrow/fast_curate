@@ -4,7 +4,21 @@ All good ideas/code stolen with love from [spikeinterface](https://github.com/Sp
 
 # Installation
 
-Recommended steps:
+Using good old fashioned venvs:
+
+1. Create or enter your virtual enviroment
+2. Clone this repository and move into the repo folder:
+```
+git clone https://github.com/chrishalcrow/fast_curate.git
+cd fast_curate
+```
+3. Install fast curate
+```
+pip install -e .
+```
+
+
+Using uv:
 
 1. [install uv](https://docs.astral.sh/uv/getting-started/installation/#__tabbed_1_1)
 2. Clone this repository and move into the repo folder:
@@ -17,7 +31,7 @@ cd fast_curate
 uv run python
 ```
 
-If that worked - great! You can now use `fast_curate`. 
+If that worked, great. Running fast curate will work!
 
 # Run fast_curate
 
@@ -28,6 +42,12 @@ To run `fast_curate`, you need to specify:
 
 You should run the gui from your `fast_curate` (because this defines the python environment). Here's an example
 
+python:
+```
+python fast_curate/gui.py --labels sua mua noise --analyzer_path /home/Work/my_experiment/derivatives/M25/D20/kilosort4_sa --output_folder /home/Work/my_experiment/derivatives/M25/D20/kilosort4_sa/curation
+```
+
+uv:
 ```
 uv run fast_curate/gui.py --labels sua mua noise --analyzer_path /home/Work/my_experiment/derivatives/M25/D20/kilosort4_sa --output_folder /home/Work/my_experiment/derivatives/M25/D20/kilosort4_sa/curation
 ```
