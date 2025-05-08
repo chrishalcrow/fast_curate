@@ -36,7 +36,7 @@ class DataForGUI:
                 self.amps[unit_id] = []
             
             for spike, amp in zip(random_spikes, random_amps):
-                unit_id = spike['unit_index']
+                unit_id = sorting_analyzer.unit_ids[spike['unit_index']]
                 self.amps[unit_id].append(amp)
         amps = None
         
@@ -60,7 +60,7 @@ class DataForGUI:
                 self.locs_y[unit_id] = []
 
             for spike, loc_x, loc_y in zip(random_spikes, random_locs_x, random_locs_y):
-                unit_id = spike['unit_index']
+                unit_id = sorting_analyzer.unit_ids[spike['unit_index']]
                 self.locs_x[unit_id].append(loc_x)
                 self.locs_y[unit_id].append(loc_y)
         locs = None
@@ -81,13 +81,11 @@ class DataForGUI:
             )
             templates_data = sorting_analyzer.get_extension("templates").get_data()
             self.templates = {unit_id_1:
-                          templates_data[unit_id_1, :, max_channels[sorting_analyzer.sorting.id_to_index(
-                              unit_id_1)]]
-                          for unit_id_1 in sorting_analyzer.unit_ids}
+                          templates_data[unit_index_1, :, max_channels[unit_index_1]]
+                          for unit_index_1, unit_id_1 in enumerate(sorting_analyzer.unit_ids)}
             self.all_templates = {unit_id_1:
-                              templates_data[unit_id_1, :, self.sparsity_mask[sorting_analyzer.sorting.id_to_index(
-                                  unit_id_1)]]
-                              for unit_id_1 in sorting_analyzer.unit_ids}
+                              templates_data[unit_index_1, :, self.sparsity_mask[unit_index_1]]
+                              for unit_index_1, unit_id_1 in enumerate(sorting_analyzer.unit_ids)}
         else:
             self.templates = {}
             self.all_templates = {}

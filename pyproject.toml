@@ -10,5 +10,8 @@ dependencies = [
     "pandas>=2.2.3",
     "pyqt6>=6.8.1",
     "pyqtgraph>=0.13.7",
-    "spikeinterface>=0.102.2",
+    "spikeinterface==0.102.3",
+    "pyyaml>=6.0.2",
+    "scikit-learn>=1.6.1",
+    "skops>=0.11.0",
 ]

@@ -118,7 +118,7 @@ def main():
     sorting_analyzer, have_extension = load_sa_and_extensions(analyzer_path)
 
     app = QtWidgets.QApplication(sys.argv)
-    window = MainWindow(sorting_analyzer, args.labels,
+    window = CurationWindow(sorting_analyzer, args.labels,
                         output_folder, have_extension)
     window.resize(1600, 800)
     window.show()
@@ -126,7 +126,7 @@ def main():
     sys.exit(app.exec())
 
 
-class MainWindow(QtWidgets.QMainWindow):
+class CurationWindow(QtWidgets.QMainWindow):
     def __init__(self, sorting_analyzer, labels, output_folder, have_extension):
 
         # forward data from the user
@@ -321,6 +321,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def initialise_choice_df(self):
         """Make the initial `.csv` output file with appropriate column names."""
+
+        
 
         string_to_write = "index,keystroke,unit_id"
         for key in self.data.metrics.keys():
