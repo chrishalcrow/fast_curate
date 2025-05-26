@@ -2,6 +2,7 @@
     Controls the visualisation. All the GUI stuff!
 """
 
+import json
 import sys
 from pathlib import Path
 from argparse import ArgumentParser
@@ -138,6 +139,7 @@ class CurationWindow(QtWidgets.QMainWindow):
         # forward data from the user
         self.have_extension = have_extension
         self.output_folder = output_folder
+        self.full_labels = labels
         self.first_letters = [label[0] for label in labels]
 
         # cache and wrangle data for all plots
@@ -328,6 +330,8 @@ class CurationWindow(QtWidgets.QMainWindow):
                 self.id_1_tracker = 0
         elif keystroke == "q":
             self.close()
+        else:
+            print(f"keystroke {keystroke} is not a valid option. Check the window title to see your options.")
 
         self.save_choice(keystroke)
 
@@ -388,6 +392,8 @@ class CurationWindow(QtWidgets.QMainWindow):
         just_labels = final_choices_df[['unit_id', 'label']]
         just_labels.to_csv(self.output_folder /
                            Path("just_labels.csv"), index=False)
+        
+        self.make_spikeinterface_format(just_labels)
 
     def closeEvent(self, event):
         """Intercepts the user closing the app, to save the labels."""
@@ -395,6 +401,26 @@ class CurationWindow(QtWidgets.QMainWindow):
         self.save_labels()
         self.update_signal.emit()
         event.accept()
+
+    def make_spikeinterface_format(self, labels):
+        
+        curation = {}
+        curation["format_version"] = 1
+        curation["unit_ids"] = []
+        curation["label_definitions"] = {
+            "quality": {
+                "label_options": self.first_letters,
+                "exclusive": "true"
+            }
+        }
+        curation["manual_labels"] = []
+        
+        for _, (unit_id, label) in labels.iterrows():
+            curation["unit_ids"].append(unit_id)
+            curation["manual_labels"].append({"unit_id": str(unit_id), "quality": [label]})
+
+        with open(self.output_folder / Path("spikeinterface_curation.yaml"), 'w') as si_file:
+            json.dump(curation, si_file, indent=4)
 
 
 if __name__ == '__main__':

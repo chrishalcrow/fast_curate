@@ -63,6 +63,7 @@ class TrainWindow(QtWidgets.QMainWindow):
 
         self.scalarsForm = QtWidgets.QLineEdit("['standard_scaler']")
         self.scalarsForm.setStyleSheet("background-color: white")
+
         scalarsOptions = QtWidgets.QLabel("<i>Possible options</i>: 'standard_scaler', 'min_max_scaler', 'robust_scaler'")
 
         self.imputersForm = QtWidgets.QLineEdit("['knn']")

@@ -2,6 +2,8 @@ import sys
 import ast
 import yaml
 
+from argparse import ArgumentParser
+
 from pathlib import Path
 from functools import partial
 
@@ -11,7 +13,7 @@ import PyQt6.QtWidgets as QtWidgets
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
 
-from gui import CurationWindow, load_sa_and_extensions
+from curate import CurationWindow, load_sa_and_extensions
 from train import TrainWindow
 
 
@@ -46,7 +48,7 @@ class MainWindow(QtWidgets.QWidget):
         output_folder_text = QtWidgets.QLabel(f"Project folder: {self.output_folder}")
         projectLayout.addWidget(output_folder_text,0,0,1,3)
 
-        labels_text = QtWidgets.QLabel(f"Labels: ")
+        labels_text = QtWidgets.QLabel("Labels: ")
         labels_text.setAlignment(Qt.AlignmentFlag.AlignRight) 
 
         projectLayout.addWidget(labels_text,1,0,1,1)
@@ -84,7 +86,7 @@ class MainWindow(QtWidgets.QWidget):
         validateWidget = QtWidgets.QWidget()
 
         projectWidget.setStyleSheet("background-color: LightBlue")
-        saWidget.setStyleSheet("background-color: '#DCFFDC'")
+        saWidget.setStyleSheet("background-color: '#CBEECB'")
         trainWidget.setStyleSheet("background-color: PeachPuff")
         validateWidget.setStyleSheet("background-color: Pink")
 
@@ -98,25 +100,24 @@ class MainWindow(QtWidgets.QWidget):
 
         self.layout = QtWidgets.QGridLayout(self)
 
-        
-        projectTitleWidget = QtWidgets.QLabel(f"1. PROJECT DETAILS")
+        projectTitleWidget = QtWidgets.QLabel("1. PROJECT DETAILS")
         self.layout.addWidget(projectTitleWidget)
         projectTitleWidget.setStyleSheet("font-weight: bold;")
         self.layout.addWidget(projectWidget)
 
-        curationTitleWidget = QtWidgets.QLabel(f"2. CURATION")
+        curationTitleWidget = QtWidgets.QLabel("2. CURATION")
         self.layout.addWidget(curationTitleWidget)
         curationTitleWidget.setStyleSheet("font-weight: bold;")
         self.layout.addWidget(saWidget)
 
-        trainTitleWidget = QtWidgets.QLabel(f"3. TRAIN")
+        trainTitleWidget = QtWidgets.QLabel("3. TRAIN")
         trainTitleWidget.setStyleSheet("font-weight: bold;")
         self.layout.addWidget(trainTitleWidget)
         self.layout.addWidget(trainWidget)
 
-        validateTitlewidget = QtWidgets.QLabel(f"4. VALIDATE")
-        validateTitlewidget.setStyleSheet("font-weight: bold;")
-        self.layout.addWidget(validateTitlewidget)
+        validateTitleWidget = QtWidgets.QLabel("4. VALIDATE")
+        validateTitleWidget.setStyleSheet("font-weight: bold;")
+        self.layout.addWidget(validateTitleWidget)
         self.layout.addWidget(validateWidget)
 
 
@@ -130,36 +131,27 @@ class MainWindow(QtWidgets.QWidget):
             selected_directory = file_dialog.selectedFiles()[0]
             self.sorting_analyzer_paths.append(selected_directory)
 
-            print('self.config[analyzers] before: ', self.config['analyzers'] )
-
             self.config['analyzers'] = add_analyzer(self.config['analyzers'], selected_directory)
-
-            print('self.config[analyzers] after: ', self.config['analyzers'] )
 
             with open(self.output_folder / 'config.yaml', 'w') as file:
                 yaml.dump(self.config, file)
 
-            
-
             self.make_curation_button_list()
-
-
-
             
     def make_curation_button_list(self):
 
         for i, (analyzer_index, selected_directory) in enumerate(self.config['analyzers'].items()):
 
             curate_button = QtWidgets.QPushButton(f'Curate "{selected_directory}"')
-            delete_button = QtWidgets.QPushButton(f"X")
+            delete_button = QtWidgets.QPushButton("X")
 
             curate_button.clicked.connect(partial(self.show_curation_window, selected_directory, analyzer_index))
             self.saLayout.addWidget(curate_button,4+i,0)
 
             curation_output_folder = Path(self.output_folder) / Path(f"curation_data/{analyzer_index}_{Path(selected_directory).name}")
+            curation_output_folder.mkdir(exist_ok=True)
 
             if (curation_output_folder / "num_units.txt").is_file():
-                print("it's a file!")
                 just_labels = pd.read_csv(curation_output_folder / "just_labels.csv")
 
                 with open(curation_output_folder / "num_units.txt", 'r') as file:
@@ -238,18 +230,68 @@ def parse_labels(labels_string):
 
    return parsed_list
 
+def main():
+        
+    if __name__ == "__main__":
+        
+        parser = ArgumentParser(
+            description="UnitRefine - curate your sorting and create a machine learning model based on your curation."
+        )
+        parser.add_argument(
+            "--project_folder",
+            required=True,
+            type=str,
+        )
+        parser.add_argument(
+            "--labels",
+            nargs='+',
+        )
 
-output_folder = Path("/home/nolanlab/Work/Developing/fromgit/fast_curate/my_project/")
+        args = parser.parse_args()
+        
+        labels = args.labels
+        project_folder = Path(args.project_folder).resolve()
+        config_filepath = project_folder / "config.yaml"
 
-with open(output_folder / "config.yaml") as stream:
-    config = yaml.safe_load(stream)
+        config = {}
+        if project_folder.is_dir():
+            print("Project already exists. Loading config file...")
+            if config_filepath.is_file():
+                with open(config_filepath) as stream:
+                    config = yaml.safe_load(stream)
 
-app = QtWidgets.QApplication(sys.argv)
+                if labels is not None:
+                    inputted_labels = labels
+                    if labels != config['labels']:
+                        print(f"User inputted labels {inputted_labels} do not match labels in config file {config['labels']}")
+                        print("Using labels in config file.")
+        else:
+            print("Project Folder does not exist. Creating now...")
+            project_folder.mkdir()
 
-custom_font = QFont()
-custom_font.setFamily("courier new")
-app.setFont(custom_font)
-w = MainWindow(output_folder, config)
-w.show()
-app.exec()
+        if len(config) == 0:
+            print("No config file found")
+            if labels is None:
+                print("No labels specified. Using 'good', 'bad'")
+                config['labels'] = ['good', 'bad']
+            else:
+                config['labels'] = labels
+
+        curation_data_folder = project_folder / "curation_data"
+        curation_data_folder.mkdir(exist_ok=True)
+
+        app = QtWidgets.QApplication(sys.argv)
+
+        custom_font = QFont()
+        custom_font.setFamily("courier new")
+        app.setFont(custom_font)
+        w = MainWindow(project_folder, config)
+        w.show()
+        app.exec()
+
+
+if __name__ == "__main__":
+    main()
+
+
 
