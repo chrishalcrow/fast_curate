@@ -8,6 +8,22 @@ import pandas as pd
 import spikeinterface.full as si
 from compute import compute_autocorrelograms
 
+def get_scaled_templates(templates, std_templates):
+
+
+    scaled_templates = {}
+    scaled_stds = {}      
+    for (unit_id, template_data), std_template in zip(templates.items(), std_templates.values()):
+        #min_value = np.min(template_data)
+        abs_max_value = np.max(abs(template_data))
+
+        scaled_templates[unit_id] = template_data/abs_max_value
+        scaled_stds[unit_id] = std_template/abs_max_value
+
+    return scaled_templates, scaled_stds
+    
+
+
 class DataForGUI:
 
     def __init__(self, sorting_analyzer, have_extension):
@@ -36,7 +52,7 @@ class DataForGUI:
                 self.amps[unit_id] = []
             
             for spike, amp in zip(random_spikes, random_amps):
-                unit_id = spike['unit_index']
+                unit_id = sorting_analyzer.unit_ids[spike['unit_index']]
                 self.amps[unit_id].append(amp)
         amps = None
         
@@ -60,7 +76,7 @@ class DataForGUI:
                 self.locs_y[unit_id] = []
 
             for spike, loc_x, loc_y in zip(random_spikes, random_locs_x, random_locs_y):
-                unit_id = spike['unit_index']
+                unit_id = sorting_analyzer.unit_ids[spike['unit_index']]
                 self.locs_x[unit_id].append(loc_x)
                 self.locs_y[unit_id].append(loc_y)
         locs = None
@@ -80,14 +96,17 @@ class DataForGUI:
                 si.get_template_extremum_channel(sorting_analyzer).values()
             )
             templates_data = sorting_analyzer.get_extension("templates").get_data()
+            std_data = sorting_analyzer.get_extension("templates").get_data("std")
             self.templates = {unit_id_1:
-                          templates_data[unit_id_1, :, max_channels[sorting_analyzer.sorting.id_to_index(
-                              unit_id_1)]]
-                          for unit_id_1 in sorting_analyzer.unit_ids}
-            self.all_templates = {unit_id_1:
-                              templates_data[unit_id_1, :, self.sparsity_mask[sorting_analyzer.sorting.id_to_index(
-                                  unit_id_1)]]
-                              for unit_id_1 in sorting_analyzer.unit_ids}
+                          templates_data[unit_index_1, :, max_channels[unit_index_1]]
+                          for unit_index_1, unit_id_1 in enumerate(sorting_analyzer.unit_ids)}
+            all_templates = {unit_id_1:
+                              templates_data[unit_index_1, :, self.sparsity_mask[unit_index_1]]
+                              for unit_index_1, unit_id_1 in enumerate(sorting_analyzer.unit_ids)}
+            std_templates = {unit_id_1:
+                              std_data[unit_index_1, :, self.sparsity_mask[unit_index_1]]
+                              for unit_index_1, unit_id_1 in enumerate(sorting_analyzer.unit_ids)}
+            self.scaled_templates, self.scaled_stds = get_scaled_templates(all_templates, std_templates)
         else:
             self.templates = {}
             self.all_templates = {}
@@ -149,7 +168,9 @@ class DataForGUI:
             unit_data['unit_location'] = None
 
         unit_data['binned_spikes'], _ = np.histogram(unit_data['spikes'], bins=20)
-        unit_data['all_templates'] = self.all_templates.get(unit_index)
+        #unit_data['all_templates'] = self.all_templates.get(unit_index)
+        unit_data['scaled_templates'] = self.scaled_templates.get(unit_index)
+        unit_data['scaled_stds'] = self.scaled_stds.get(unit_index)
 
         unit_data['channel_locations'] = self.channel_locations
 
