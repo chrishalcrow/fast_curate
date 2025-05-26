@@ -4,7 +4,21 @@ All good ideas inspired by [spikeinterface](https://github.com/SpikeInterface/sp
 
 # Installation
 
-Recommended steps:
+Using good old fashioned venvs:
+
+1. Create or enter your virtual enviroment
+2. Clone this repository and move into the repo folder:
+```
+git clone https://github.com/chrishalcrow/fast_curate.git
+cd fast_curate
+```
+3. Install fast curate
+```
+pip install -e .
+```
+
+
+Using uv:
 
 1. Make a new virtual environment and activate it
 More information: 
@@ -30,6 +44,7 @@ python src/fast_curate/main.py --project_folder my_new_project
 
 A window should pop up that looks like this:
 
+
 ![image](resources/basic_window.png)
 
 From here, it should be easy to change the labels, add sorting analyzers, curate the data and train a model. Keep an eye on the feedback that comes through the terminal - it will help!
@@ -51,3 +66,4 @@ A window should pop up that looks like this:
 ![image](resources/curation_window.png)
 
 This is heavily inspired by [spikeinterface](https://github.com/SpikeInterface/spikeinterface)'s report feature.
+
