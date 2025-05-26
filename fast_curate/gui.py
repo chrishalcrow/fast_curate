@@ -11,6 +11,8 @@ import PyQt6.QtWidgets as QtWidgets
 import numpy as np
 import pyqtgraph as pg
 
+from PyQt6.QtCore import pyqtSignal
+
 import spikeinterface.full as si
 from wrangle import DataForGUI
 
@@ -19,6 +21,7 @@ pg.setConfigOption('background', 'w')
 color_1 = (78, 121, 167)
 color_2 = (242, 142, 43)
 color_3 = (89, 161, 79)
+color_3_fade = (169, 255, 146)
 
 
 def check_labels(labels):
@@ -127,6 +130,9 @@ def main():
 
 
 class CurationWindow(QtWidgets.QMainWindow):
+
+    update_signal = pyqtSignal()
+
     def __init__(self, sorting_analyzer, labels, output_folder, have_extension):
 
         # forward data from the user
@@ -140,16 +146,20 @@ class CurationWindow(QtWidgets.QMainWindow):
         
         # set up unit id and tracking logic
         self.good_units = sorting_analyzer.unit_ids
+        self.num_units = len(self.good_units)
+
+        with open(output_folder / "num_units.txt", 'w') as num_units_file:
+            num_units_file.write(str(self.num_units))
+
         self.curated_ids = []
         self.decision_counter = 0
         self.id_1_tracker = 0
         self.unit_id = self.good_units[0]
 
         # Make window
-
         super().__init__()
 
-        window_title_text = "FAST CURATE! Options: (q)uit, (u)ndo"
+        window_title_text = "UNIT REFINE. Options: (q)uit, (u)ndo"
         for label in labels:
             window_title_text += f", ({label[0]}){label[1:]}"
 
@@ -160,7 +170,6 @@ class CurationWindow(QtWidgets.QMainWindow):
         widget.setLayout(layout)
 
         # Make widgets and arrange them in a grid.
-
         for a in [0, 1, 2, 3]:
             layout.setColumnStretch(a, 1)
 
@@ -207,7 +216,7 @@ class CurationWindow(QtWidgets.QMainWindow):
         self.unit_locations_plot_3 = self.unit_locations_widget.plot(
             symbol="x", symbolSize=20, symbolBrush=color_2)
         self.unit_locations_widget.setLabels(
-            title=f"UNIT {self.unit_id} -- Unit location")
+            title=f"UNIT {self.unit_id}/{self.num_units} -- Unit location")
 
         self.correlogram_plot = self.correlogram_widget.plot(
             stepMode="left", fillLevel=0, fillOutline=True, brush=color_1)
@@ -246,7 +255,7 @@ class CurationWindow(QtWidgets.QMainWindow):
 
         self.all_templates_plot = self.all_templates_widget.plot(
             pen=pg.mkPen(color_3, width=2))
-        self.all_templates_widget.setLabels(title="Unit templates")
+        self.all_templates_widget.setLabels(title="Unit templates (with standard deviation)")
 
         unit_data = self.data.get_unit_data(self.unit_id)
         self.update_plot(unit_data)
@@ -267,7 +276,7 @@ class CurationWindow(QtWidgets.QMainWindow):
             self.max_templates_plot.setData(unit_data['template'])
             self.all_templates_widget.clear()
             self.update_template_plot(
-                unit_data['channel_locations'], unit_data['all_templates'])
+                unit_data['channel_locations'], unit_data['scaled_templates'], unit_data['scaled_stds'])
 
         self.binned_spikes_plot.setData(
             unit_data['binned_spikes'])
@@ -282,17 +291,26 @@ class CurationWindow(QtWidgets.QMainWindow):
                 unit_data['unit_location'][1]])
 
         self.unit_locations_widget.setLabels(
-            title=f"UNIT {self.unit_id} -- Unit location")
+            title=f"UNIT {self.unit_id}/{self.num_units} -- Unit location")
 
-    def update_template_plot(self, channel_locations, all_templates):
+    def update_template_plot(self, channel_locations, all_templates, std_templates):
         """All templates plot is bit awkward, so factor out the messiness into a function. This function!"""
 
         template_channels_locs_1 = channel_locations[self.data.sparsity_mask[self.unit_id]]
 
         for template_index, template_channel_loc in enumerate(template_channels_locs_1):
             curve = pg.PlotCurveItem(4*template_channel_loc[0] + np.arange(
-                90), template_channel_loc[1]/1 + all_templates[template_index, :], pen=pg.mkPen(color_3, width=2))
+                90), template_channel_loc[1]/10 + all_templates[template_index, :], pen=pg.mkPen(color_3, width=2))
+            curve_std_p = pg.PlotCurveItem(4*template_channel_loc[0] + np.arange(
+                90), template_channel_loc[1]/10 + all_templates[template_index, :] + std_templates[template_index, :], pen=pg.mkPen(color_3_fade, width=1))
+            curve_std_m = pg.PlotCurveItem(4*template_channel_loc[0] + np.arange(
+                90), template_channel_loc[1]/10 + all_templates[template_index, :] - std_templates[template_index, :], pen=pg.mkPen(color_3_fade, width=1))
+            pfill = pg.FillBetweenItem(curve_std_m, curve_std_p, brush=pg.mkBrush(color_3_fade))
+            
             self.all_templates_widget.addItem(curve)
+            self.all_templates_widget.addItem(pfill)
+            self.all_templates_widget.addItem(curve_std_p, fillLevel=1)
+            self.all_templates_widget.addItem(curve_std_m)
 
     # USER LOGIC
 
@@ -321,8 +339,6 @@ class CurationWindow(QtWidgets.QMainWindow):
 
     def initialise_choice_df(self):
         """Make the initial `.csv` output file with appropriate column names."""
-
-        
 
         string_to_write = "index,keystroke,unit_id"
         for key in self.data.metrics.keys():
@@ -377,6 +393,7 @@ class CurationWindow(QtWidgets.QMainWindow):
         """Intercepts the user closing the app, to save the labels."""
         print("Saving final curation...")
         self.save_labels()
+        self.update_signal.emit()
         event.accept()
 
 

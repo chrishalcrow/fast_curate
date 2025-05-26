@@ -1,41 +1,23 @@
 import sys
-from pathlib import Path
-import PyQt6.QtWidgets as QtWidgets
+import ast
 import yaml
-from gui import CurationWindow, load_sa_and_extensions
-from train import TrainWindow
-import numpy as np
 
-import PyQt6.QtWidgets as QtWidgets
-import sys
-
+from pathlib import Path
 from functools import partial
 
-def add_analyzer(analyzers, directory):
+import pandas as pd
 
-    analyzer_keys = analyzers.keys()
-    if len(analyzer_keys) > 0:
-        max_key = np.max(list(analyzer_keys))
-        new_key = max_key + 1
-    else:
-        new_key = 0
+import PyQt6.QtWidgets as QtWidgets
+from PyQt6.QtGui import QFont
+from PyQt6.QtCore import Qt
 
-    analyzers[new_key] = directory
+from gui import CurationWindow, load_sa_and_extensions
+from train import TrainWindow
 
-    return analyzers
-
-def main():
-
-    
-    window.resize(1600, 800)
-    window.show()
-
-    sys.exit(app.exec())
 
 class MainWindow(QtWidgets.QWidget):
 
-
-    def __init__(self, output_folder, labels):
+    def __init__(self, output_folder, config):
         
         super().__init__()
         
@@ -45,19 +27,34 @@ class MainWindow(QtWidgets.QWidget):
         self.delete_buttons = []
 
         self.output_folder = output_folder
-        self.labels = labels
 
         self.config = {}
-        self.config['labels'] = labels
-        self.config['analyzers'] = {}
 
-        saLayout = QtWidgets.QGridLayout(self)
+        if config.get('labels') is not None:
+            self.config['labels'] = config['labels']
+        else:
+            self.config['labels'] = {}
+        self.labels = self.config['labels']
+
+        if config.get('analyzers') is not None:
+            self.config['analyzers'] = config['analyzers']
+        else:
+            self.config['analyzers'] = {}
+
+        projectLayout = QtWidgets.QGridLayout(self)
 
         output_folder_text = QtWidgets.QLabel(f"Project folder: {self.output_folder}")
-        saLayout.addWidget(output_folder_text,0,0,1,3)
+        projectLayout.addWidget(output_folder_text,0,0,1,3)
 
-        labels_text = QtWidgets.QLabel(f"Labels: {self.labels}")
-        saLayout.addWidget(labels_text,1,0,1,3)
+        labels_text = QtWidgets.QLabel(f"Labels: ")
+        labels_text.setAlignment(Qt.AlignmentFlag.AlignRight) 
+
+        projectLayout.addWidget(labels_text,1,0,1,1)
+        
+        self.change_labels_button = QtWidgets.QLineEdit(f"{self.labels}")
+        projectLayout.addWidget(self.change_labels_button,1,1,1,2)
+        
+        saLayout = QtWidgets.QGridLayout(self)
 
         self.add_sa_button = QtWidgets.QPushButton("+ Add Sorting Analyzer Folder")
         self.add_sa_button.clicked.connect(self.selectDirectoryDialog)
@@ -66,8 +63,8 @@ class MainWindow(QtWidgets.QWidget):
         self.curate_text = QtWidgets.QLabel("Curated?")
         saLayout.addWidget(self.curate_text,3,1,1,1)
 
-        self.curate_text = QtWidgets.QLabel("Remove")
-        saLayout.addWidget(self.curate_text,3,2,1,1)
+        self.reset_text = QtWidgets.QLabel("Reset")
+        saLayout.addWidget(self.reset_text,3,2,1,1)
         
         trainLayout = QtWidgets.QGridLayout(self)
 
@@ -81,24 +78,45 @@ class MainWindow(QtWidgets.QWidget):
         self.validate_button.clicked.connect(self.show_validate_window)
         validateLayout.addWidget(self.validate_button,2,4)
 
+        projectWidget = QtWidgets.QWidget()
         saWidget = QtWidgets.QWidget()
         trainWidget = QtWidgets.QWidget()
         validateWidget = QtWidgets.QWidget()
 
+        projectWidget.setStyleSheet("background-color: LightBlue")
         saWidget.setStyleSheet("background-color: '#DCFFDC'")
         trainWidget.setStyleSheet("background-color: PeachPuff")
         validateWidget.setStyleSheet("background-color: Pink")
 
         self.saLayout = saLayout
 
+        projectWidget.setLayout(projectLayout)
         saWidget.setLayout(saLayout)
+        self.make_curation_button_list()
         trainWidget.setLayout(trainLayout)
         validateWidget.setLayout(validateLayout)
 
         self.layout = QtWidgets.QGridLayout(self)
 
+        
+        projectTitleWidget = QtWidgets.QLabel(f"1. PROJECT DETAILS")
+        self.layout.addWidget(projectTitleWidget)
+        projectTitleWidget.setStyleSheet("font-weight: bold;")
+        self.layout.addWidget(projectWidget)
+
+        curationTitleWidget = QtWidgets.QLabel(f"2. CURATION")
+        self.layout.addWidget(curationTitleWidget)
+        curationTitleWidget.setStyleSheet("font-weight: bold;")
         self.layout.addWidget(saWidget)
+
+        trainTitleWidget = QtWidgets.QLabel(f"3. TRAIN")
+        trainTitleWidget.setStyleSheet("font-weight: bold;")
+        self.layout.addWidget(trainTitleWidget)
         self.layout.addWidget(trainWidget)
+
+        validateTitlewidget = QtWidgets.QLabel(f"4. VALIDATE")
+        validateTitlewidget.setStyleSheet("font-weight: bold;")
+        self.layout.addWidget(validateTitlewidget)
         self.layout.addWidget(validateWidget)
 
 
@@ -112,29 +130,65 @@ class MainWindow(QtWidgets.QWidget):
             selected_directory = file_dialog.selectedFiles()[0]
             self.sorting_analyzer_paths.append(selected_directory)
 
+            print('self.config[analyzers] before: ', self.config['analyzers'] )
+
             self.config['analyzers'] = add_analyzer(self.config['analyzers'], selected_directory)
 
-            self.curate_buttons.append(QtWidgets.QPushButton(f'Curate "{selected_directory}"'))
-            self.delete_buttons.append(QtWidgets.QPushButton(f"X"))
+            print('self.config[analyzers] after: ', self.config['analyzers'] )
 
-            for i, (curate_button, delete_button, (analyzer_index, selected_directory)) in enumerate(zip(self.curate_buttons, self.delete_buttons, self.config['analyzers'].items())):
+            with open(self.output_folder / 'config.yaml', 'w') as file:
+                yaml.dump(self.config, file)
 
-                curate_button.clicked.connect(partial(self.show_curation_window, selected_directory, analyzer_index))
-                self.saLayout.addWidget(curate_button,4+i,0)
-
-                not_curated_text = QtWidgets.QLabel("No")
-                self.saLayout.addWidget(not_curated_text,4+i,1)
-
-                delete_button.clicked.connect(partial(self.remove_sa, selected_directory))
-                self.saLayout.addWidget(delete_button,4+i,2)
-
-
-        #self.curate_text
             
-    def remove_sa(self, selected_directory):
-        return
+
+            self.make_curation_button_list()
+
+
+
+            
+    def make_curation_button_list(self):
+
+        for i, (analyzer_index, selected_directory) in enumerate(self.config['analyzers'].items()):
+
+            curate_button = QtWidgets.QPushButton(f'Curate "{selected_directory}"')
+            delete_button = QtWidgets.QPushButton(f"X")
+
+            curate_button.clicked.connect(partial(self.show_curation_window, selected_directory, analyzer_index))
+            self.saLayout.addWidget(curate_button,4+i,0)
+
+            curation_output_folder = Path(self.output_folder) / Path(f"curation_data/{analyzer_index}_{Path(selected_directory).name}")
+
+            if (curation_output_folder / "num_units.txt").is_file():
+                print("it's a file!")
+                just_labels = pd.read_csv(curation_output_folder / "just_labels.csv")
+
+                with open(curation_output_folder / "num_units.txt", 'r') as file:
+                    num_units = int(file.read())
+
+                not_curated_text = QtWidgets.QLabel(f"{len(just_labels)}/{num_units}")
+
+            else:
+                not_curated_text = QtWidgets.QLabel("---")
+
+            self.saLayout.addWidget(not_curated_text,4+i,1)
+
+            delete_button.clicked.connect(partial(self.reset_sa, curation_output_folder))
+            self.saLayout.addWidget(delete_button,4+i,2)
+
+    def reset_sa(self, selected_directory):
+
+        files_in_dir = list(selected_directory.glob('*'))
+        for curation_file in files_in_dir:
+            if curation_file.is_file():
+                curation_file.unlink()
+
+        self.make_curation_button_list()
 
     def show_curation_window(self, selected_directory, analyzer_index):
+
+        self.labels = parse_labels(self.change_labels_button.text())
+
+        self.change_labels_button.setReadOnly(True)
 
         analyzer_path = Path(selected_directory)
         sorting_analyzer, have_extension = load_sa_and_extensions(analyzer_path)
@@ -142,29 +196,47 @@ class MainWindow(QtWidgets.QWidget):
         curation_output_folder = Path(self.output_folder) / Path(f"curation_data/{analyzer_index}_{analyzer_path.name}")
         curation_output_folder.mkdir(parents=False, exist_ok=True)
 
+        self.curation_output_folder = curation_output_folder
+
         with open(curation_output_folder / "sorting_analyzer_path.txt", "w") as f:
             f.write(str(selected_directory))
 
-        #if self.w is None:
         self.w = CurationWindow(sorting_analyzer, self.labels, curation_output_folder, have_extension)
         self.w.resize(1600, 800)
-        #else:
-        #    print("Window already open!")
+
+        self.w.update_signal.connect(self.make_curation_button_list)
 
         self.w.show()
+
 
     def show_train_window(self, checked):
-    #if self.w is None:
         self.w = TrainWindow(self.output_folder, self.config)
         self.w.resize(800, 600)
-     #   else:
-      #      print("Window already open!")
-
         self.w.show()
+
     def show_validate_window(self, checked):
 
         print("Coming soon...")
 
+
+def add_analyzer(analyzers, directory):
+
+    analyzer_keys = analyzers.keys()
+    if len(analyzer_keys) > 0:
+        max_key = max(list(analyzer_keys))
+        new_key = max_key + 1
+    else:
+        new_key = 0
+
+    analyzers[new_key] = directory
+
+    return analyzers
+
+def parse_labels(labels_string):
+
+   parsed_list = ast.literal_eval(labels_string)
+
+   return parsed_list
 
 
 output_folder = Path("/home/nolanlab/Work/Developing/fromgit/fast_curate/my_project/")
@@ -172,14 +244,12 @@ output_folder = Path("/home/nolanlab/Work/Developing/fromgit/fast_curate/my_proj
 with open(output_folder / "config.yaml") as stream:
     config = yaml.safe_load(stream)
 
-labels = config['labels']
-
 app = QtWidgets.QApplication(sys.argv)
-from PyQt6.QtGui import QFont
+
 custom_font = QFont()
 custom_font.setFamily("courier new")
 app.setFont(custom_font)
-w = MainWindow(output_folder, labels)
+w = MainWindow(output_folder, config)
 w.show()
 app.exec()
 
