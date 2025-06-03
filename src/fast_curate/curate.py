@@ -153,10 +153,17 @@ class CurationWindow(QtWidgets.QMainWindow):
         with open(output_folder / "num_units.txt", 'w') as num_units_file:
             num_units_file.write(str(self.num_units))
 
-        self.curated_ids = []
-        self.decision_counter = 0
         self.id_1_tracker = 0
-        self.unit_id = self.good_units[0]
+        self.curated_ids = []
+        
+        decision_data_path =  self.output_folder / Path("decision_data_with_metics.csv")
+        if decision_data_path.is_file():
+            previous_decision_data = pd.read_csv(decision_data_path)
+            self.id_1_tracker = len(previous_decision_data)
+            self.curated_ids = list(previous_decision_data['unit_id'].values)
+
+        self.decision_counter = 0
+        self.unit_id = self.good_units[self.id_1_tracker]
 
         # Make window
         super().__init__()
@@ -330,6 +337,7 @@ class CurationWindow(QtWidgets.QMainWindow):
                 self.id_1_tracker = 0
         elif keystroke == "q":
             self.close()
+            return
         else:
             print(f"keystroke {keystroke} is not a valid option. Check the window title to see your options.")
 
@@ -344,7 +352,7 @@ class CurationWindow(QtWidgets.QMainWindow):
     def initialise_choice_df(self):
         """Make the initial `.csv` output file with appropriate column names."""
 
-        string_to_write = "index,keystroke,unit_id"
+        string_to_write = "index,label,unit_id"
         for key in self.data.metrics.keys():
             string_to_write += f",{key}"
         string_to_write += "\n"
@@ -370,35 +378,53 @@ class CurationWindow(QtWidgets.QMainWindow):
 
         self.decision_counter += 1
 
-    def save_labels(self):
+    def save_labels(self, delete_decision_cache=False):
         """Converts the user decision cache into an output labels csv."""
 
+        decision_data_with_metics_path = self.output_folder / Path("decision_data_with_metics.csv")
+        decision_data_cache_path = self.output_folder / Path("decision_data_cache.csv")
         curated_ids = np.unique(self.curated_ids)
-        save_choice_df = pd.read_csv(
-            self.output_folder / Path("decision_data_cache.csv"))
+        
+        previous_choices = pd.DataFrame()
+        if decision_data_with_metics_path.is_file():
+            previous_choices = pd.read_csv(decision_data_with_metics_path)
+
+        new_choices = pd.read_csv(decision_data_cache_path)
+
+        choices_to_save = pd.concat([previous_choices, new_choices])
+
+        print("choices_to_save: ", choices_to_save)
 
         final_choices_list = []
-        for unit_id in curated_ids:
-            final_choices_list.append(save_choice_df.query(
-                f'unit_id == {unit_id}').iloc[-1])
 
-        keys = save_choice_df.keys()
+        print("curated_ids: ", curated_ids)
+
+        for unit_id in curated_ids:
+            final_choices_list.append(choices_to_save.query(
+                f'unit_id == {unit_id}').iloc[-1])
+            
+        print("final_choices_list: ", final_choices_list)
+
+        keys = choices_to_save.keys()
         final_choices_df = pd.DataFrame(final_choices_list, columns=keys)
         final_choices_df = final_choices_df.rename(
             columns={'keystroke': 'label'})
 
-        final_choices_df.to_csv(
-            self.output_folder / Path("decision_data_with_metics.csv"), index=False)
+        final_choices_df.to_csv(decision_data_with_metics_path, index=False)
         just_labels = final_choices_df[['unit_id', 'label']]
         just_labels.to_csv(self.output_folder /
                            Path("just_labels.csv"), index=False)
+        
+        if delete_decision_cache:
+            decision_data_cache_path.unlink()
         
         self.make_spikeinterface_format(just_labels)
 
     def closeEvent(self, event):
         """Intercepts the user closing the app, to save the labels."""
         print("Saving final curation...")
-        self.save_labels()
+
+        self.save_labels(delete_decision_cache=True)
         self.update_signal.emit()
         event.accept()
 
