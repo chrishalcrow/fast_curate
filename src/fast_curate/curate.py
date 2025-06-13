@@ -24,7 +24,6 @@ color_2 = (242, 142, 43)
 color_3 = (89, 161, 79)
 color_3_fade = (169, 255, 146)
 
-
 def check_labels(labels):
     """Check that the user-inputted labels are unique and don't shadow special keys."""
     first_letters = [label[0] for label in labels]
@@ -129,6 +128,9 @@ def main():
 
     sys.exit(app.exec())
 
+
+from PyQt6.QtGui import QPalette
+from PyQt6.QtCore import Qt
 
 class CurationWindow(QtWidgets.QMainWindow):
 
@@ -393,11 +395,7 @@ class CurationWindow(QtWidgets.QMainWindow):
 
         choices_to_save = pd.concat([previous_choices, new_choices])
 
-        print("choices_to_save: ", choices_to_save)
-
         final_choices_list = []
-
-        print("curated_ids: ", curated_ids)
 
         for unit_id in curated_ids:
             final_choices_list.append(choices_to_save.query(

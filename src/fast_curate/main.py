@@ -10,6 +10,7 @@ from functools import partial
 import pandas as pd
 
 import PyQt6.QtWidgets as QtWidgets
+from PyQt6.QtWidgets import QStyleFactory
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt
 
@@ -281,6 +282,9 @@ def main():
         curation_data_folder.mkdir(exist_ok=True)
 
         app = QtWidgets.QApplication(sys.argv)
+
+        app.setStyle(QStyleFactory.create("Fusion"))
+
 
         custom_font = QFont()
         custom_font.setFamily("courier new")

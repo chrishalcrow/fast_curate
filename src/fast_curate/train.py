@@ -14,12 +14,11 @@ class TrainWindow(QtWidgets.QMainWindow):
 
         train_model_kwargs = {}
 
-
         window_title_text = "TIME TO TRAIN"
         self.setWindowTitle(window_title_text)
 
         global_curation_data_folder = project_folder / Path("curation_data")
-        curation_data_folders = list(global_curation_data_folder.glob('*'))
+        curation_data_folders = [f for f in global_curation_data_folder.glob('*') if not str(f.name).startswith('.')]
         csv_paths = [curation_data_folder / "decision_data_with_metics.csv" for curation_data_folder in curation_data_folders]
         metrics = [pd.read_csv(csv_path) for csv_path in csv_paths]
         train_model_kwargs['metrics_paths'] = csv_paths
@@ -97,9 +96,6 @@ class TrainWindow(QtWidgets.QMainWindow):
         formLayout.addRow(blank_label)
 
         formLayout.addRow(trainButton)
-
-
-
 
         widget.setLayout(formLayout)
 
