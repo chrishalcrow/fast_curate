@@ -129,14 +129,31 @@ def main():
     sys.exit(app.exec())
 
 
-from PyQt6.QtGui import QPalette
-from PyQt6.QtCore import Qt
-
 class CurationWindow(QtWidgets.QMainWindow):
 
     update_signal = pyqtSignal()
 
     def __init__(self, sorting_analyzer, labels, output_folder, have_extension):
+
+        # Make window
+        super().__init__()
+
+        window_title_text = "UNIT REFINE. Options: (q)uit, (u)ndo"
+        for label in labels:
+            window_title_text += f", ({label[0]}){label[1:]}"
+
+        self.setWindowTitle(window_title_text)
+        curation_widget = CurationWidget(sorting_analyzer, labels, output_folder, have_extension, parent_window=self)
+        curation_widget.setStyleSheet("background-color: Pink")
+        self.setCentralWidget(curation_widget)
+
+class CurationWidget(QtWidgets.QWidget):
+
+    update_signal = pyqtSignal()
+
+    def __init__(self, sorting_analyzer, labels, output_folder, have_extension, parent_window=None, initial_unit=None):
+
+        self.parent_window = parent_window
 
         # forward data from the user
         self.have_extension = have_extension
@@ -152,9 +169,6 @@ class CurationWindow(QtWidgets.QMainWindow):
         self.good_units = sorting_analyzer.unit_ids
         self.num_units = len(self.good_units)
 
-        with open(output_folder / "num_units.txt", 'w') as num_units_file:
-            num_units_file.write(str(self.num_units))
-
         self.id_1_tracker = 0
         self.curated_ids = []
         
@@ -165,20 +179,21 @@ class CurationWindow(QtWidgets.QMainWindow):
             self.curated_ids = list(previous_decision_data['unit_id'].values)
 
         self.decision_counter = 0
-        self.unit_id = self.good_units[self.id_1_tracker]
+        if initial_unit is None:
+            self.unit_id = self.good_units[self.id_1_tracker]
+        else: 
+            self.unit_id = initial_unit
 
         # Make window
         super().__init__()
-
-        window_title_text = "UNIT REFINE. Options: (q)uit, (u)ndo"
-        for label in labels:
-            window_title_text += f", ({label[0]}){label[1:]}"
-
-        self.setWindowTitle(window_title_text)
+       
 
         layout = QtWidgets.QGridLayout()
         widget = QtWidgets.QWidget()
+        widget.setStyleSheet("background-color: Pink")
         widget.setLayout(layout)
+
+        
 
         # Make widgets and arrange them in a grid.
         for a in [0, 1, 2, 3]:
@@ -211,7 +226,13 @@ class CurationWindow(QtWidgets.QMainWindow):
         self.initialise_plot()
         self.initialise_choice_df()
 
-        self.setCentralWidget(widget)
+        self.setLayout(layout)
+        print("I am getting here...")
+
+        # layout = QtWidgets.QVBoxLayout(self)
+        # layout.addWidget(widget)
+
+        # self.setCentralWidget(widget)
 
     def initialise_plot(self):
         """Sets up the initial axes/plot styles for all plots, then plots the first unit."""
@@ -339,6 +360,8 @@ class CurationWindow(QtWidgets.QMainWindow):
                 self.id_1_tracker = 0
         elif keystroke == "q":
             self.close()
+            if self.parent_window:
+                self.parent_window.close()
             return
         else:
             print(f"keystroke {keystroke} is not a valid option. Check the window title to see your options.")
@@ -346,7 +369,11 @@ class CurationWindow(QtWidgets.QMainWindow):
         self.save_choice(keystroke)
 
         self.unit_id = self.good_units[self.id_1_tracker]
-        unit_data = self.data.get_unit_data(self.unit_id)
+        self.update_to_unit(self.unit_id)
+
+    def update_to_unit(self, unit_id):
+        
+        unit_data = self.data.get_unit_data(unit_id)
         self.update_plot(unit_data)
 
     # SAVING STUFF
@@ -418,13 +445,6 @@ class CurationWindow(QtWidgets.QMainWindow):
         
         self.make_spikeinterface_format(just_labels)
 
-    def closeEvent(self, event):
-        """Intercepts the user closing the app, to save the labels."""
-        print("Saving final curation...")
-
-        self.save_labels(delete_decision_cache=True)
-        self.update_signal.emit()
-        event.accept()
 
     def make_spikeinterface_format(self, labels):
         
@@ -445,6 +465,14 @@ class CurationWindow(QtWidgets.QMainWindow):
 
         with open(self.output_folder / Path("spikeinterface_curation.yaml"), 'w') as si_file:
             json.dump(curation, si_file, indent=4)
+
+    def closeEvent(self, event):
+        """Intercepts the user closing the app, to save the labels."""
+        print("Saving final curation...")
+
+        self.save_labels(delete_decision_cache=True)
+        self.update_signal.emit()
+        event.accept()
 
 
 if __name__ == '__main__':

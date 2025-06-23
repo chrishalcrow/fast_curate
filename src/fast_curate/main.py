@@ -16,6 +16,7 @@ from PyQt6.QtCore import Qt
 
 from curate import CurationWindow, load_sa_and_extensions
 from train import TrainWindow
+from validate import ValidateWindow
 
 
 class MainWindow(QtWidgets.QWidget):
@@ -102,22 +103,22 @@ class MainWindow(QtWidgets.QWidget):
         self.layout = QtWidgets.QGridLayout(self)
 
         projectTitleWidget = QtWidgets.QLabel("1. PROJECT DETAILS")
+        projectTitleWidget.setStyleSheet("font-weight: bold; font-size: 20pt;")
         self.layout.addWidget(projectTitleWidget)
-        projectTitleWidget.setStyleSheet("font-weight: bold;")
         self.layout.addWidget(projectWidget)
 
         curationTitleWidget = QtWidgets.QLabel("2. CURATION")
+        curationTitleWidget.setStyleSheet("font-weight: bold; font-size: 20pt;")
         self.layout.addWidget(curationTitleWidget)
-        curationTitleWidget.setStyleSheet("font-weight: bold;")
         self.layout.addWidget(saWidget)
 
         trainTitleWidget = QtWidgets.QLabel("3. TRAIN")
-        trainTitleWidget.setStyleSheet("font-weight: bold;")
+        trainTitleWidget.setStyleSheet("font-weight: bold; font-size: 20pt;")
         self.layout.addWidget(trainTitleWidget)
         self.layout.addWidget(trainWidget)
 
         validateTitleWidget = QtWidgets.QLabel("4. VALIDATE")
-        validateTitleWidget.setStyleSheet("font-weight: bold;")
+        validateTitleWidget.setStyleSheet("font-weight: bold; font-size: 20pt;")
         self.layout.addWidget(validateTitleWidget)
         self.layout.addWidget(validateWidget)
 
@@ -143,7 +144,12 @@ class MainWindow(QtWidgets.QWidget):
 
         for i, (analyzer_index, selected_directory) in enumerate(self.config['analyzers'].items()):
 
-            curate_button = QtWidgets.QPushButton(f'Curate "{selected_directory}"')
+            if len(str(selected_directory)) > 40:
+                selected_directory_text_display = "..." + str(selected_directory)[-40:]
+            else:
+                selected_directory_text_display = selected_directory
+
+            curate_button = QtWidgets.QPushButton(f'Curate "{selected_directory_text_display}"')
             delete_button = QtWidgets.QPushButton("X")
 
             curate_button.clicked.connect(partial(self.show_curation_window, selected_directory, analyzer_index))
@@ -209,7 +215,10 @@ class MainWindow(QtWidgets.QWidget):
 
     def show_validate_window(self, checked):
 
-        print("Coming soon...")
+        self.w = ValidateWindow(self.labels, self.output_folder, self.config['analyzers'])
+        self.w.resize(800, 600)
+        self.w.show()
+
 
 
 def add_analyzer(analyzers, directory):
