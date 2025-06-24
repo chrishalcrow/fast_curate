@@ -56,6 +56,10 @@ class MainWindow(QtWidgets.QWidget):
         projectLayout.addWidget(labels_text,1,0,1,1)
         
         self.change_labels_button = QtWidgets.QLineEdit(f"{self.labels}")
+        if config.get('labels') is not None:
+            self.change_labels_button.setReadOnly(True)
+        else:
+            self.change_labels_button.setStyleSheet("background-color: White")
         projectLayout.addWidget(self.change_labels_button,1,1,1,2)
         
         saLayout = QtWidgets.QGridLayout(self)
@@ -145,7 +149,7 @@ class MainWindow(QtWidgets.QWidget):
 
             else:
 
-                print("Selected directory {selected_directory} is not a SortingAnalyzer.")
+                print(f"Selected directory {selected_directory} is not a SortingAnalyzer.")
             
     def make_curation_button_list(self):
 
@@ -193,8 +197,12 @@ class MainWindow(QtWidgets.QWidget):
     def show_curation_window(self, selected_directory, analyzer_index):
 
         self.labels = parse_labels(self.change_labels_button.text())
+        self.config['labels'] = self.labels
+        with open(self.output_folder / 'config.yaml', 'w') as file:
+            yaml.dump(self.config, file)
 
         self.change_labels_button.setReadOnly(True)
+        self.change_labels_button.setStyleSheet("background-color: LightBlue")
 
         analyzer_path = Path(selected_directory)
         sorting_analyzer, have_extension = load_sa_and_extensions(analyzer_path)

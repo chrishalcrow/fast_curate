@@ -22,7 +22,10 @@ pg.setConfigOption('background', 'w')
 color_1 = (78, 121, 167)
 color_2 = (242, 142, 43)
 color_3 = (89, 161, 79)
+color_3_between = (129,201, 105)
 color_3_fade = (169, 255, 146)
+color_3_extra_fade = (239, 255, 216)
+color_3_extra_fade = (78, 121, 167)
 
 def check_labels(labels):
     """Check that the user-inputted labels are unique and don't shadow special keys."""
@@ -187,16 +190,12 @@ class CurationWidget(QtWidgets.QWidget):
         else: 
             self.unit_id = initial_unit
 
-        # Make window
         super().__init__()
        
-
         layout = QtWidgets.QGridLayout()
         widget = QtWidgets.QWidget()
         widget.setStyleSheet("background-color: Pink")
         widget.setLayout(layout)
-
-        
 
         # Make widgets and arrange them in a grid.
         for a in [0, 1, 2, 3]:
@@ -230,12 +229,6 @@ class CurationWidget(QtWidgets.QWidget):
         self.initialise_choice_df()
 
         self.setLayout(layout)
-        print("I am getting here...")
-
-        # layout = QtWidgets.QVBoxLayout(self)
-        # layout.addWidget(widget)
-
-        # self.setCentralWidget(widget)
 
     def initialise_plot(self):
         """Sets up the initial axes/plot styles for all plots, then plots the first unit."""
@@ -290,7 +283,7 @@ class CurationWidget(QtWidgets.QWidget):
 
         self.all_templates_plot = self.all_templates_widget.plot(
             pen=pg.mkPen(color_3, width=2))
-        self.all_templates_widget.setLabels(title="Unit templates (with standard deviation)")
+        self.all_templates_widget.setLabels(title="Unit templates (with sd & 99%-ile)")
 
         unit_data = self.data.get_unit_data(self.unit_id)
         self.update_plot(unit_data)
@@ -311,13 +304,15 @@ class CurationWidget(QtWidgets.QWidget):
             self.max_templates_plot.setData(unit_data['template'])
             self.all_templates_widget.clear()
             self.update_template_plot(
-                unit_data['channel_locations'], unit_data['scaled_templates'], unit_data['scaled_stds'])
+                unit_data['channel_locations'], unit_data['scaled_templates'], unit_data['scaled_stds'], unit_data['scaled_perc'])
 
         self.binned_spikes_plot.setData(
             unit_data['binned_spikes'])
 
         self.correlogram_plot.setData(
             unit_data['correlogram_bins'][1:], unit_data['correlograms'])
+        self.correlogram_widget.setLabels(
+            title=f"Auto-corr isi_ratio = {unit_data['isi']:.4f}", bottom="time (ms)", left="count")
         self.correlogram_zoom_plot.setData(
             unit_data['wide_bins'][1:], unit_data['wide_correlograms'])
 
@@ -328,27 +323,40 @@ class CurationWidget(QtWidgets.QWidget):
         self.unit_locations_widget.setLabels(
             title=f"UNIT {self.unit_id}/{self.num_units} -- Unit location")
 
-    def update_template_plot(self, channel_locations, all_templates, std_templates):
+    def update_template_plot(self, channel_locations, all_templates, std_templates, perc_templates):
         """All templates plot is bit awkward, so factor out the messiness into a function. This function!"""
 
         template_channels_locs_1 = channel_locations[self.data.sparsity_mask[self.unit_id]]
 
+        x_scale = 4
+        y_scale = 1/6
+
         for template_index, template_channel_loc in enumerate(template_channels_locs_1):
-            curve = pg.PlotCurveItem(4*template_channel_loc[0] + np.arange(
-                90), template_channel_loc[1]/10 + all_templates[template_index, :], pen=pg.mkPen(color_3, width=2))
-            curve_std_p = pg.PlotCurveItem(4*template_channel_loc[0] + np.arange(
-                90), template_channel_loc[1]/10 + all_templates[template_index, :] + std_templates[template_index, :], pen=pg.mkPen(color_3_fade, width=1))
-            curve_std_m = pg.PlotCurveItem(4*template_channel_loc[0] + np.arange(
-                90), template_channel_loc[1]/10 + all_templates[template_index, :] - std_templates[template_index, :], pen=pg.mkPen(color_3_fade, width=1))
-            pfill = pg.FillBetweenItem(curve_std_m, curve_std_p, brush=pg.mkBrush(color_3_fade))
-            
+
+            if perc_templates is not None:
+                curve_perc_p = pg.PlotCurveItem(x_scale*template_channel_loc[0] + np.arange(
+                    90), template_channel_loc[1]*y_scale + all_templates[template_index, :] + perc_templates[template_index, :], pen=pg.mkPen(color_3_extra_fade, width=1))
+                curve_perc_m = pg.PlotCurveItem(x_scale*template_channel_loc[0] + np.arange(
+                    90), template_channel_loc[1]*y_scale + all_templates[template_index, :] - perc_templates[template_index, :], pen=pg.mkPen(color_3_extra_fade, width=1))
+                pfill_extra = pg.FillBetweenItem(curve_perc_m, curve_perc_p, brush=pg.mkBrush(color_3_fade))
+                self.all_templates_widget.addItem(pfill_extra)
+                self.all_templates_widget.addItem(curve_perc_p, fillLevel=1)
+                self.all_templates_widget.addItem(curve_perc_m, fillLevel=1)
+            if std_templates is not None:
+                curve_std_p = pg.PlotCurveItem(x_scale*template_channel_loc[0] + np.arange(
+                    90), template_channel_loc[1]*y_scale + all_templates[template_index, :] + std_templates[template_index, :], pen=pg.mkPen(color_3_fade, width=1))
+                curve_std_m = pg.PlotCurveItem(x_scale*template_channel_loc[0] + np.arange(
+                    90), template_channel_loc[1]*y_scale + all_templates[template_index, :] - std_templates[template_index, :], pen=pg.mkPen(color_3_fade, width=1))
+                pfill = pg.FillBetweenItem(curve_std_m, curve_std_p, brush=pg.mkBrush(color_3_between))
+                self.all_templates_widget.addItem(pfill)
+                self.all_templates_widget.addItem(curve_std_p, fillLevel=1)
+                self.all_templates_widget.addItem(curve_std_m)
+           
+            curve = pg.PlotCurveItem(x_scale*template_channel_loc[0] + np.arange(
+                90), template_channel_loc[1]*y_scale + all_templates[template_index, :], pen=pg.mkPen((0,0,0), width=2))
             self.all_templates_widget.addItem(curve)
-            self.all_templates_widget.addItem(pfill)
-            self.all_templates_widget.addItem(curve_std_p, fillLevel=1)
-            self.all_templates_widget.addItem(curve_std_m)
 
     # USER LOGIC
-
     def keyPressEvent(self, event): 
 
         keystroke = event.text()
@@ -356,6 +364,7 @@ class CurationWidget(QtWidgets.QWidget):
         if keystroke in self.first_letters:
             self.curated_ids.append(self.unit_id)
             self.id_1_tracker += 1
+            print(f"Unit id {self.unit_id} labelled as {keystroke}.")
         elif keystroke == "u":
             self.id_1_tracker -= 1
             if self.id_1_tracker == -1:
@@ -430,8 +439,6 @@ class CurationWidget(QtWidgets.QWidget):
         for unit_id in curated_ids:
             final_choices_list.append(choices_to_save.query(
                 f'unit_id == {unit_id}').iloc[-1])
-            
-        print("final_choices_list: ", final_choices_list)
 
         keys = choices_to_save.keys()
         final_choices_df = pd.DataFrame(final_choices_list, columns=keys)

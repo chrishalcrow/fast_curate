@@ -53,7 +53,7 @@ class ValidateWindow(QtWidgets.QMainWindow):
         self.unit_info_widget.setReadOnly(True)
         self.unit_info_widget.setStyleSheet("background-color: white")
 
-        self.random_button = QtWidgets.QPushButton("Generate Random Unit")
+        self.random_button = QtWidgets.QPushButton("Show Random Unit")
         self.random_button.clicked.connect(self.generate_random_integer)
         validateLayout.addWidget(self.random_button,self.validateLayout_counter , 0)
         self.validateLayout_counter += 1
