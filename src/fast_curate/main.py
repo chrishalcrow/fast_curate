@@ -1,7 +1,7 @@
 import sys
 import ast
 import yaml
-
+import json
 from argparse import ArgumentParser
 
 from pathlib import Path
@@ -131,21 +131,28 @@ class MainWindow(QtWidgets.QWidget):
 
         if file_dialog.exec():
             selected_directory = file_dialog.selectedFiles()[0]
-            self.sorting_analyzer_paths.append(selected_directory)
 
-            self.config['analyzers'] = add_analyzer(self.config['analyzers'], selected_directory)
+            if is_an_analyzer(selected_directory):
 
-            with open(self.output_folder / 'config.yaml', 'w') as file:
-                yaml.dump(self.config, file)
+                self.sorting_analyzer_paths.append(selected_directory)
 
-            self.make_curation_button_list()
+                self.config['analyzers'] = add_analyzer(self.config['analyzers'], selected_directory)
+
+                with open(self.output_folder / 'config.yaml', 'w') as file:
+                    yaml.dump(self.config, file)
+
+                self.make_curation_button_list()
+
+            else:
+
+                print("Selected directory {selected_directory} is not a SortingAnalyzer.")
             
     def make_curation_button_list(self):
 
         for i, (analyzer_index, selected_directory) in enumerate(self.config['analyzers'].items()):
 
             if len(str(selected_directory)) > 40:
-                selected_directory_text_display = "..." + str(selected_directory)[-40:]
+               selected_directory_text_display = "..." + str(selected_directory)[-40:]
             else:
                 selected_directory_text_display = selected_directory
 
@@ -302,6 +309,18 @@ def main():
         w.show()
         app.exec()
 
+
+def is_an_analyzer(directory):
+
+    directory = Path(directory)
+
+    if (directory / "spikeinterface_info.json").is_file():
+        with open(directory / "spikeinterface_info.json") as f:
+            info = json.load(f)
+        if info.get("object") == "SortingAnalyzer":
+            return True
+    
+    return False
 
 if __name__ == "__main__":
     main()

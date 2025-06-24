@@ -45,7 +45,7 @@ class ValidateWindow(QtWidgets.QMainWindow):
 
         self.current_model_path = models[0]
 
-        analyzer_path = list(analyzers.values())[1]
+        analyzer_path = list(analyzers.values())[0]
 
         self.curation_display = self.load_and_display_analyzer(analyzer_path, self.current_model_path, labels, output_folder)
 

@@ -169,6 +169,9 @@ class CurationWidget(QtWidgets.QWidget):
         self.good_units = sorting_analyzer.unit_ids
         self.num_units = len(self.good_units)
 
+        with open(output_folder / "num_units.txt", 'w') as num_units_file:
+            num_units_file.write(str(self.num_units))
+
         self.id_1_tracker = 0
         self.curated_ids = []
         
@@ -472,6 +475,7 @@ class CurationWidget(QtWidgets.QWidget):
 
         self.save_labels(delete_decision_cache=True)
         self.update_signal.emit()
+        self.parent_window.update_signal.emit()
         event.accept()
 
 
