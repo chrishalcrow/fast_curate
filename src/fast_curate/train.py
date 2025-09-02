@@ -12,8 +12,10 @@ class TrainWindow(QtWidgets.QMainWindow):
 
         train_model_kwargs = {}
 
-        window_title_text = "TIME TO TRAIN"
+        window_title_text = "UNITREFINE: Train your model"
         self.setWindowTitle(window_title_text)
+
+        self.model_folder = None
 
         global_curation_data_folder = project_folder / Path("curation_data")
         curation_data_folders = [f for f in global_curation_data_folder.glob('*') if not str(f.name).startswith('.')]
@@ -37,7 +39,6 @@ class TrainWindow(QtWidgets.QMainWindow):
 
         metric_names = [metric_name for metric_name in metric_names_set if metric_name not in ["index", "label", "unit_id"]]
         train_model_kwargs['metric_names'] = metric_names
-  
 
         data_text = "Using the following analyzers:<br />"
         for curation_data_folder, metric_data in zip(curation_data_folders, metrics):
@@ -122,4 +123,6 @@ class TrainWindow(QtWidgets.QMainWindow):
             **train_model_kwargs,
         )
 
-        print(f"Finished training model. Saved in {folder}.")
+        print(f"Finished training models. Best model saved in in {folder}.")
+
+        self.model_folder = folder

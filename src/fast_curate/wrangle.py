@@ -89,16 +89,16 @@ class DataForGUI:
             templates_data = sorting_analyzer.get_extension("templates").get_data()
             std_data = sorting_analyzer.get_extension("templates").get_data("std")
             percentile_data = sorting_analyzer.get_extension("templates").get_data("pencentile_99")
-            self.templates = {unit_id_1:
+            self.templates = {unit_index_1:
                           templates_data[unit_index_1, :, max_channels[unit_index_1]]
                           for unit_index_1, unit_id_1 in enumerate(sorting_analyzer.unit_ids)}
-            all_templates = {unit_id_1:
+            all_templates = {unit_index_1:
                               templates_data[unit_index_1, :, self.sparsity_mask[unit_index_1]]
                               for unit_index_1, unit_id_1 in enumerate(sorting_analyzer.unit_ids)}
-            std_templates = {unit_id_1:
+            std_templates = {unit_index_1:
                               std_data[unit_index_1, :, self.sparsity_mask[unit_index_1]]
                               for unit_index_1, unit_id_1 in enumerate(sorting_analyzer.unit_ids)}
-            perc_templates = {unit_id_1:
+            perc_templates = {unit_index_1:
                               percentile_data[unit_index_1, :, self.sparsity_mask[unit_index_1]]
                               for unit_index_1, unit_id_1 in enumerate(sorting_analyzer.unit_ids)}
             self.scaled_templates, self.scaled_stds, self.scaled_perc = get_scaled_templates(all_templates, std_templates, perc_templates)
@@ -169,7 +169,7 @@ class DataForGUI:
 
         unit_data['channel_locations'] = self.channel_locations
 
-        isi_violations_ratio = self.metrics['isi_violations_ratio']
+        isi_violations_ratio = self.metrics.get('isi_violations_ratio')
         if isi_violations_ratio is not None:
             unit_data['isi'] = isi_violations_ratio.get(unit_index)
         else:

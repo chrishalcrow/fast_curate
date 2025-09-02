@@ -171,6 +171,7 @@ class CurationWidget(QtWidgets.QWidget):
         # set up unit id and tracking logic
         self.good_units = sorting_analyzer.unit_ids
         self.num_units = len(self.good_units)
+        self.good_indices = range(self.num_units)
 
         with open(output_folder / "num_units.txt", 'w') as num_units_file:
             num_units_file.write(str(self.num_units))
@@ -187,8 +188,10 @@ class CurationWidget(QtWidgets.QWidget):
         self.decision_counter = 0
         if initial_unit is None:
             self.unit_id = self.good_units[self.id_1_tracker]
+            self.unit_index = self.good_indices[self.id_1_tracker]
         else: 
             self.unit_id = initial_unit
+            self.unit_index = 0
 
         super().__init__()
        
@@ -311,8 +314,12 @@ class CurationWidget(QtWidgets.QWidget):
 
         self.correlogram_plot.setData(
             unit_data['correlogram_bins'][1:], unit_data['correlograms'])
+        if unit_data['isi'] is not None:
+            auto_text = f"Auto-corr isi_ratio = {unit_data['isi']:.4f}"
+        else:
+            auto_text = "Auto-correlogram"
         self.correlogram_widget.setLabels(
-            title=f"Auto-corr isi_ratio = {unit_data['isi']:.4f}", bottom="time (ms)", left="count")
+            title=auto_text, bottom="time (ms)", left="count")
         self.correlogram_zoom_plot.setData(
             unit_data['wide_bins'][1:], unit_data['wide_correlograms'])
 
@@ -326,7 +333,7 @@ class CurationWidget(QtWidgets.QWidget):
     def update_template_plot(self, channel_locations, all_templates, std_templates, perc_templates):
         """All templates plot is bit awkward, so factor out the messiness into a function. This function!"""
 
-        template_channels_locs_1 = channel_locations[self.data.sparsity_mask[self.unit_id]]
+        template_channels_locs_1 = channel_locations[self.data.sparsity_mask[self.unit_index]]
 
         x_scale = 4
         y_scale = 1/6
@@ -380,12 +387,19 @@ class CurationWidget(QtWidgets.QWidget):
 
         self.save_choice(keystroke)
 
-        self.unit_id = self.good_units[self.id_1_tracker]
-        self.update_to_unit(self.unit_id)
+        unit_id = self.good_units[self.id_1_tracker]
+        unit_index = self.good_indices[self.id_1_tracker]
+        
+        self.update_to_unit(unit_id, unit_index)
 
-    def update_to_unit(self, unit_id):
+    def update_to_unit(self, unit_id, unit_index):
+
+        self.unit_id = unit_id
+        self.unit_index = unit_index
         
         unit_data = self.data.get_unit_data(unit_id)
+
+
         self.update_plot(unit_data)
 
     # SAVING STUFF
