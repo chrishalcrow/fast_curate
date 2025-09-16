@@ -47,6 +47,10 @@ class MainWindow(QtWidgets.QWidget):
         else:
             self.config['analyzers'] = {}
 
+        for analyzer_path in self.config['analyzers'].values():
+            if not Path(analyzer_path).is_dir():
+                raise FileNotFoundError(f"Folder {analyzer_path} does not exist. Please update the config file at {output_folder / 'config.yaml'}.")
+
         self.curation = config.get('curate')
 
         self.main_layout = QtWidgets.QGridLayout(self)
@@ -242,6 +246,39 @@ class MainWindow(QtWidgets.QWidget):
         else: 
             self.main_layout.addWidget(applyWidget)
         self.main_layout.addWidget(validateWidget)
+
+        ###############
+        # CODE BUTTON
+        ###############
+
+        apply_code_button = QtWidgets.QPushButton("Generate code to apply model to analyzer")
+        apply_code_button.clicked.connect(self.make_apply_code)
+        self.main_layout.addWidget(apply_code_button)
+
+    def make_apply_code(self):
+
+        
+
+        code_text = "\n"
+        code_text += "import spikinterface.full as si\n\n"
+        code_text += "# point this path to the analyzer you want to apply the model to\n"
+        code_text += "path_to_analyzer = 'path/to/analyzer'\n"
+        code_text += "analyzer_to_curate = si.load_sorting_analyzer(path_to_analyzer)\n\n"
+        if self.local_model is not None:
+            code_text += f"model_folder = {self.local_model}\n\n"
+            code_text += "# labels will be a list of curated labels, determined by the model.\n"
+            code_text += "labels = si.auto_label_units(\n\tsorting_analyzer = analyzer_to_curate,\n\tmodel_folder = model_folder,\n)\n\n"
+            code_text += "Read more here: https://spikeinterface.readthedocs.io/en/stable/tutorials/curation/plot_1_automated_curation.html\n\n"      
+
+        elif self.repo_model is not None:
+            code_text += f"repo_id = '{self.repo_model}'\n\n"
+            code_text += "# labels will be a list of curated labels, determined by the model.\n"
+            code_text += "labels = si.auto_label_units(\n    sorting_analyzer = analyzer_to_curate,\n    repo_id = repo_id,\n    trust_model = True,\n)\n\n"
+            code_text += "Read more here: https://spikeinterface.readthedocs.io/en/stable/tutorials/curation/plot_1_automated_curation.html\n\n"      
+        else:
+            code_text = "No model loaded. Cannot apply to analyzer.\n\n"
+            
+        print(code_text)
 
     def selectDirectoryDialog(self):
         file_dialog = QtWidgets.QFileDialog(self)
