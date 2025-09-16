@@ -22,8 +22,10 @@ pg.setConfigOption('background', 'w')
 color_1 = (78, 121, 167)
 color_2 = (242, 142, 43)
 color_3 = (89, 161, 79)
+color_3_between = (129,201, 105)
 color_3_fade = (169, 255, 146)
-
+color_3_extra_fade = (239, 255, 216)
+color_3_extra_fade = (78, 121, 167)
 
 def check_labels(labels):
     """Check that the user-inputted labels are unique and don't shadow special keys."""
@@ -136,6 +138,26 @@ class CurationWindow(QtWidgets.QMainWindow):
 
     def __init__(self, sorting_analyzer, labels, output_folder, have_extension):
 
+        # Make window
+        super().__init__()
+
+        window_title_text = "UNIT REFINE. Options: (q)uit, (u)ndo"
+        for label in labels:
+            window_title_text += f", ({label[0]}){label[1:]}"
+
+        self.setWindowTitle(window_title_text)
+        curation_widget = CurationWidget(sorting_analyzer, labels, output_folder, have_extension, parent_window=self)
+        curation_widget.setStyleSheet("background-color: Pink")
+        self.setCentralWidget(curation_widget)
+
+class CurationWidget(QtWidgets.QWidget):
+
+    update_signal = pyqtSignal()
+
+    def __init__(self, sorting_analyzer, labels, output_folder, have_extension, parent_window=None, initial_unit=None):
+
+        self.parent_window = parent_window
+
         # forward data from the user
         self.have_extension = have_extension
         self.output_folder = output_folder
@@ -149,26 +171,33 @@ class CurationWindow(QtWidgets.QMainWindow):
         # set up unit id and tracking logic
         self.good_units = sorting_analyzer.unit_ids
         self.num_units = len(self.good_units)
+        self.good_indices = range(self.num_units)
 
         with open(output_folder / "num_units.txt", 'w') as num_units_file:
             num_units_file.write(str(self.num_units))
 
-        self.curated_ids = []
-        self.decision_counter = 0
         self.id_1_tracker = 0
-        self.unit_id = self.good_units[0]
+        self.curated_ids = []
+        
+        decision_data_path =  self.output_folder / Path("decision_data_with_metics.csv")
+        if decision_data_path.is_file():
+            previous_decision_data = pd.read_csv(decision_data_path)
+            self.id_1_tracker = len(previous_decision_data)
+            self.curated_ids = list(previous_decision_data['unit_id'].values)
 
-        # Make window
+        self.decision_counter = 0
+        if initial_unit is None:
+            self.unit_id = self.good_units[self.id_1_tracker]
+            self.unit_index = self.good_indices[self.id_1_tracker]
+        else: 
+            self.unit_id = initial_unit
+            self.unit_index = 0
+
         super().__init__()
-
-        window_title_text = "UNIT REFINE. Options: (q)uit, (u)ndo"
-        for label in labels:
-            window_title_text += f", ({label[0]}){label[1:]}"
-
-        self.setWindowTitle(window_title_text)
-
+       
         layout = QtWidgets.QGridLayout()
         widget = QtWidgets.QWidget()
+        widget.setStyleSheet("background-color: Pink")
         widget.setLayout(layout)
 
         # Make widgets and arrange them in a grid.
@@ -202,7 +231,7 @@ class CurationWindow(QtWidgets.QMainWindow):
         self.initialise_plot()
         self.initialise_choice_df()
 
-        self.setCentralWidget(widget)
+        self.setLayout(layout)
 
     def initialise_plot(self):
         """Sets up the initial axes/plot styles for all plots, then plots the first unit."""
@@ -257,7 +286,7 @@ class CurationWindow(QtWidgets.QMainWindow):
 
         self.all_templates_plot = self.all_templates_widget.plot(
             pen=pg.mkPen(color_3, width=2))
-        self.all_templates_widget.setLabels(title="Unit templates (with standard deviation)")
+        self.all_templates_widget.setLabels(title="Unit templates (with sd & 99%-ile)")
 
         unit_data = self.data.get_unit_data(self.unit_id)
         self.update_plot(unit_data)
@@ -278,13 +307,19 @@ class CurationWindow(QtWidgets.QMainWindow):
             self.max_templates_plot.setData(unit_data['template'])
             self.all_templates_widget.clear()
             self.update_template_plot(
-                unit_data['channel_locations'], unit_data['scaled_templates'], unit_data['scaled_stds'])
+                unit_data['channel_locations'], unit_data['scaled_templates'], unit_data['scaled_stds'], unit_data['scaled_perc'])
 
         self.binned_spikes_plot.setData(
             unit_data['binned_spikes'])
 
         self.correlogram_plot.setData(
             unit_data['correlogram_bins'][1:], unit_data['correlograms'])
+        if unit_data['isi'] is not None:
+            auto_text = f"Auto-corr isi_ratio = {unit_data['isi']:.4f}"
+        else:
+            auto_text = "Auto-correlogram"
+        self.correlogram_widget.setLabels(
+            title=auto_text, bottom="time (ms)", left="count")
         self.correlogram_zoom_plot.setData(
             unit_data['wide_bins'][1:], unit_data['wide_correlograms'])
 
@@ -295,27 +330,40 @@ class CurationWindow(QtWidgets.QMainWindow):
         self.unit_locations_widget.setLabels(
             title=f"UNIT {self.unit_id}/{self.num_units} -- Unit location")
 
-    def update_template_plot(self, channel_locations, all_templates, std_templates):
+    def update_template_plot(self, channel_locations, all_templates, std_templates, perc_templates):
         """All templates plot is bit awkward, so factor out the messiness into a function. This function!"""
 
-        template_channels_locs_1 = channel_locations[self.data.sparsity_mask[self.unit_id]]
+        template_channels_locs_1 = channel_locations[self.data.sparsity_mask[self.unit_index]]
+
+        x_scale = 4
+        y_scale = 1/6
 
         for template_index, template_channel_loc in enumerate(template_channels_locs_1):
-            curve = pg.PlotCurveItem(4*template_channel_loc[0] + np.arange(
-                90), template_channel_loc[1]/10 + all_templates[template_index, :], pen=pg.mkPen(color_3, width=2))
-            curve_std_p = pg.PlotCurveItem(4*template_channel_loc[0] + np.arange(
-                90), template_channel_loc[1]/10 + all_templates[template_index, :] + std_templates[template_index, :], pen=pg.mkPen(color_3_fade, width=1))
-            curve_std_m = pg.PlotCurveItem(4*template_channel_loc[0] + np.arange(
-                90), template_channel_loc[1]/10 + all_templates[template_index, :] - std_templates[template_index, :], pen=pg.mkPen(color_3_fade, width=1))
-            pfill = pg.FillBetweenItem(curve_std_m, curve_std_p, brush=pg.mkBrush(color_3_fade))
-            
+
+            if perc_templates is not None:
+                curve_perc_p = pg.PlotCurveItem(x_scale*template_channel_loc[0] + np.arange(
+                    90), template_channel_loc[1]*y_scale + all_templates[template_index, :] + perc_templates[template_index, :], pen=pg.mkPen(color_3_extra_fade, width=1))
+                curve_perc_m = pg.PlotCurveItem(x_scale*template_channel_loc[0] + np.arange(
+                    90), template_channel_loc[1]*y_scale + all_templates[template_index, :] - perc_templates[template_index, :], pen=pg.mkPen(color_3_extra_fade, width=1))
+                pfill_extra = pg.FillBetweenItem(curve_perc_m, curve_perc_p, brush=pg.mkBrush(color_3_fade))
+                self.all_templates_widget.addItem(pfill_extra)
+                self.all_templates_widget.addItem(curve_perc_p, fillLevel=1)
+                self.all_templates_widget.addItem(curve_perc_m, fillLevel=1)
+            if std_templates is not None:
+                curve_std_p = pg.PlotCurveItem(x_scale*template_channel_loc[0] + np.arange(
+                    90), template_channel_loc[1]*y_scale + all_templates[template_index, :] + std_templates[template_index, :], pen=pg.mkPen(color_3_fade, width=1))
+                curve_std_m = pg.PlotCurveItem(x_scale*template_channel_loc[0] + np.arange(
+                    90), template_channel_loc[1]*y_scale + all_templates[template_index, :] - std_templates[template_index, :], pen=pg.mkPen(color_3_fade, width=1))
+                pfill = pg.FillBetweenItem(curve_std_m, curve_std_p, brush=pg.mkBrush(color_3_between))
+                self.all_templates_widget.addItem(pfill)
+                self.all_templates_widget.addItem(curve_std_p, fillLevel=1)
+                self.all_templates_widget.addItem(curve_std_m)
+           
+            curve = pg.PlotCurveItem(x_scale*template_channel_loc[0] + np.arange(
+                90), template_channel_loc[1]*y_scale + all_templates[template_index, :], pen=pg.mkPen((0,0,0), width=2))
             self.all_templates_widget.addItem(curve)
-            self.all_templates_widget.addItem(pfill)
-            self.all_templates_widget.addItem(curve_std_p, fillLevel=1)
-            self.all_templates_widget.addItem(curve_std_m)
 
     # USER LOGIC
-
     def keyPressEvent(self, event): 
 
         keystroke = event.text()
@@ -323,6 +371,7 @@ class CurationWindow(QtWidgets.QMainWindow):
         if keystroke in self.first_letters:
             self.curated_ids.append(self.unit_id)
             self.id_1_tracker += 1
+            print(f"Unit id {self.unit_id} labelled as {keystroke}.")
         elif keystroke == "u":
             self.id_1_tracker -= 1
             if self.id_1_tracker == -1:
@@ -330,13 +379,27 @@ class CurationWindow(QtWidgets.QMainWindow):
                 self.id_1_tracker = 0
         elif keystroke == "q":
             self.close()
+            if self.parent_window:
+                self.parent_window.close()
+            return
         else:
             print(f"keystroke {keystroke} is not a valid option. Check the window title to see your options.")
 
         self.save_choice(keystroke)
 
-        self.unit_id = self.good_units[self.id_1_tracker]
-        unit_data = self.data.get_unit_data(self.unit_id)
+        unit_id = self.good_units[self.id_1_tracker]
+        unit_index = self.good_indices[self.id_1_tracker]
+        
+        self.update_to_unit(unit_id, unit_index)
+
+    def update_to_unit(self, unit_id, unit_index):
+
+        self.unit_id = unit_id
+        self.unit_index = unit_index
+        
+        unit_data = self.data.get_unit_data(unit_id)
+
+
         self.update_plot(unit_data)
 
     # SAVING STUFF
@@ -344,7 +407,7 @@ class CurationWindow(QtWidgets.QMainWindow):
     def initialise_choice_df(self):
         """Make the initial `.csv` output file with appropriate column names."""
 
-        string_to_write = "index,keystroke,unit_id"
+        string_to_write = "index,label,unit_id"
         for key in self.data.metrics.keys():
             string_to_write += f",{key}"
         string_to_write += "\n"
@@ -370,37 +433,42 @@ class CurationWindow(QtWidgets.QMainWindow):
 
         self.decision_counter += 1
 
-    def save_labels(self):
+    def save_labels(self, delete_decision_cache=False):
         """Converts the user decision cache into an output labels csv."""
 
+        decision_data_with_metics_path = self.output_folder / Path("decision_data_with_metics.csv")
+        decision_data_cache_path = self.output_folder / Path("decision_data_cache.csv")
         curated_ids = np.unique(self.curated_ids)
-        save_choice_df = pd.read_csv(
-            self.output_folder / Path("decision_data_cache.csv"))
+        
+        previous_choices = pd.DataFrame()
+        if decision_data_with_metics_path.is_file():
+            previous_choices = pd.read_csv(decision_data_with_metics_path)
+
+        new_choices = pd.read_csv(decision_data_cache_path)
+
+        choices_to_save = pd.concat([previous_choices, new_choices])
 
         final_choices_list = []
+
         for unit_id in curated_ids:
-            final_choices_list.append(save_choice_df.query(
+            final_choices_list.append(choices_to_save.query(
                 f'unit_id == {unit_id}').iloc[-1])
 
-        keys = save_choice_df.keys()
+        keys = choices_to_save.keys()
         final_choices_df = pd.DataFrame(final_choices_list, columns=keys)
         final_choices_df = final_choices_df.rename(
             columns={'keystroke': 'label'})
 
-        final_choices_df.to_csv(
-            self.output_folder / Path("decision_data_with_metics.csv"), index=False)
+        final_choices_df.to_csv(decision_data_with_metics_path, index=False)
         just_labels = final_choices_df[['unit_id', 'label']]
         just_labels.to_csv(self.output_folder /
                            Path("just_labels.csv"), index=False)
         
+        if delete_decision_cache:
+            decision_data_cache_path.unlink()
+        
         self.make_spikeinterface_format(just_labels)
 
-    def closeEvent(self, event):
-        """Intercepts the user closing the app, to save the labels."""
-        print("Saving final curation...")
-        self.save_labels()
-        self.update_signal.emit()
-        event.accept()
 
     def make_spikeinterface_format(self, labels):
         
@@ -421,6 +489,15 @@ class CurationWindow(QtWidgets.QMainWindow):
 
         with open(self.output_folder / Path("spikeinterface_curation.yaml"), 'w') as si_file:
             json.dump(curation, si_file, indent=4)
+
+    def closeEvent(self, event):
+        """Intercepts the user closing the app, to save the labels."""
+        print("Saving final curation...")
+
+        self.save_labels(delete_decision_cache=True)
+        self.update_signal.emit()
+        self.parent_window.update_signal.emit()
+        event.accept()
 
 
 if __name__ == '__main__':

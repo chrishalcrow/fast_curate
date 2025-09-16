@@ -8,21 +8,20 @@ import pandas as pd
 import spikeinterface.full as si
 from compute import compute_autocorrelograms
 
-def get_scaled_templates(templates, std_templates):
-
+def get_scaled_templates(templates, std_templates, percentiles):
 
     scaled_templates = {}
     scaled_stds = {}      
-    for (unit_id, template_data), std_template in zip(templates.items(), std_templates.values()):
+    scaled_perc = {}
+    for (unit_id, template_data), std_template, perc_template in zip(templates.items(), std_templates.values(), percentiles.values()):
         #min_value = np.min(template_data)
         abs_max_value = np.max(abs(template_data))
 
         scaled_templates[unit_id] = template_data/abs_max_value
         scaled_stds[unit_id] = std_template/abs_max_value
+        scaled_perc[unit_id] = perc_template/abs_max_value
 
-    return scaled_templates, scaled_stds
-    
-
+    return scaled_templates, scaled_stds, scaled_perc
 
 class DataForGUI:
 
@@ -55,13 +54,6 @@ class DataForGUI:
                 unit_id = sorting_analyzer.unit_ids[spike['unit_index']]
                 self.amps[unit_id].append(amp)
         amps = None
-        
-#        self.locs_x = {}
-#        self.locs_y = {}
-#        locs_data = sorting_analyzer.get_extension("spike_locations").get_data(outputs="by_unit")[0]
-#        for unit_id, locs in locs_data.items():
-#            self.locs_x[unit_id] = locs['x']
- #           self.locs_y[unit_id] = locs['y']
 
         self.locs_x = {}
         self.locs_y = {}
@@ -79,7 +71,6 @@ class DataForGUI:
                 unit_id = sorting_analyzer.unit_ids[spike['unit_index']]
                 self.locs_x[unit_id].append(loc_x)
                 self.locs_y[unit_id].append(loc_y)
-        locs = None
         
         self.channel_locations = sorting_analyzer.get_channel_locations()
         self.unit_xmin = min(self.channel_locations[:, 0])
@@ -97,16 +88,20 @@ class DataForGUI:
             )
             templates_data = sorting_analyzer.get_extension("templates").get_data()
             std_data = sorting_analyzer.get_extension("templates").get_data("std")
-            self.templates = {unit_id_1:
+            percentile_data = sorting_analyzer.get_extension("templates").get_data("pencentile_99")
+            self.templates = {unit_index_1:
                           templates_data[unit_index_1, :, max_channels[unit_index_1]]
                           for unit_index_1, unit_id_1 in enumerate(sorting_analyzer.unit_ids)}
-            all_templates = {unit_id_1:
+            all_templates = {unit_index_1:
                               templates_data[unit_index_1, :, self.sparsity_mask[unit_index_1]]
                               for unit_index_1, unit_id_1 in enumerate(sorting_analyzer.unit_ids)}
-            std_templates = {unit_id_1:
+            std_templates = {unit_index_1:
                               std_data[unit_index_1, :, self.sparsity_mask[unit_index_1]]
                               for unit_index_1, unit_id_1 in enumerate(sorting_analyzer.unit_ids)}
-            self.scaled_templates, self.scaled_stds = get_scaled_templates(all_templates, std_templates)
+            perc_templates = {unit_index_1:
+                              percentile_data[unit_index_1, :, self.sparsity_mask[unit_index_1]]
+                              for unit_index_1, unit_id_1 in enumerate(sorting_analyzer.unit_ids)}
+            self.scaled_templates, self.scaled_stds, self.scaled_perc = get_scaled_templates(all_templates, std_templates, perc_templates)
         else:
             self.templates = {}
             self.all_templates = {}
@@ -168,11 +163,17 @@ class DataForGUI:
             unit_data['unit_location'] = None
 
         unit_data['binned_spikes'], _ = np.histogram(unit_data['spikes'], bins=20)
-        #unit_data['all_templates'] = self.all_templates.get(unit_index)
         unit_data['scaled_templates'] = self.scaled_templates.get(unit_index)
         unit_data['scaled_stds'] = self.scaled_stds.get(unit_index)
+        unit_data['scaled_perc'] = self.scaled_perc.get(unit_index)
 
         unit_data['channel_locations'] = self.channel_locations
+
+        isi_violations_ratio = self.metrics.get('isi_violations_ratio')
+        if isi_violations_ratio is not None:
+            unit_data['isi'] = isi_violations_ratio.get(unit_index)
+        else:
+            unit_data['isi'] = None
 
         return unit_data
 
