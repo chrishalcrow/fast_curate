@@ -7,7 +7,7 @@ import PyQt6.QtWidgets as QtWidgets
 import pyqtgraph as pg
 from pathlib import Path
 from PyQt6.QtCore import pyqtSignal
-from spikeinterface.curation import load_model, auto_label_units
+from spikeinterface.curation import auto_label_units
 import numpy.random as rand
 from functools import partial
 from PyQt6.QtCore import Qt
@@ -214,14 +214,8 @@ def get_model_pred_and_conf(predicted_labels, a_random_unit):
 
 def get_table_info(predicted_labels):
 
-
     good_units= predicted_labels
-    #good_units = predicted_labels.query("prediction == 's'")
     good_units['unit_index'] = good_units.index
-
-    print(good_units)
 
     return good_units
     
-
-   
