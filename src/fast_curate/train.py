@@ -1,4 +1,4 @@
-import PyQt6.QtWidgets as QtWidgets
+import PyQt5.QtWidgets as QtWidgets
 from pathlib import Path
 import pandas as pd
 from spikeinterface.curation import train_model

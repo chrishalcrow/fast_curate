@@ -3,14 +3,14 @@
 """
 
 from curate import CurationWidget, load_sa_and_extensions
-import PyQt6.QtWidgets as QtWidgets
+import PyQt5.QtWidgets as QtWidgets
 import pyqtgraph as pg
 from pathlib import Path
-from PyQt6.QtCore import pyqtSignal
+from PyQt5.QtCore import pyqtSignal
 from spikeinterface.curation import auto_label_units
 import numpy.random as rand
 from functools import partial
-from PyQt6.QtCore import Qt
+from PyQt5.QtCore import Qt
 
 pg.setConfigOption('background', 'w')
 
