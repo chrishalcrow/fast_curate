@@ -8,7 +8,6 @@ dependencies = [
     "numcodecs==0.15.1",
     "numba>=0.61.0",
     "pandas>=2.2.3",
-    "pyqt6>=6.8.1",
     "pyqtgraph>=0.13.7",
     "spikeinterface==0.102.3",
     "pyyaml>=6.0.2",
@@ -18,4 +17,11 @@ dependencies = [
     "xgboost>=3.0.2",
     "catboost>=1.2.8",
     "lightgbm>=4.6.0",
+    "huggingface-hub>=0.35.0",
+    "spikeinterface-gui",
+    "pyqt5>=5.15.11",
 ]
+
+[tool.uv.sources]
+spikeinterface = { path = "../spikeinterface", editable = true }
+spikeinterface-gui = { path = "../spikeinterface-gui" }

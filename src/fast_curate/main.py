@@ -9,10 +9,10 @@ from functools import partial
 
 import pandas as pd
 
-import PyQt6.QtWidgets as QtWidgets
-from PyQt6.QtWidgets import QStyleFactory
-from PyQt6.QtGui import QFont
-from PyQt6.QtCore import Qt
+import PyQt5.QtWidgets as QtWidgets
+from PyQt5.QtWidgets import QStyleFactory
+from PyQt5.QtGui import QFont
+from PyQt5.QtCore import Qt
 
 from curate import CurationWindow, load_sa_and_extensions
 from train import TrainWindow

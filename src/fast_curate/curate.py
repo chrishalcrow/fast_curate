@@ -8,11 +8,11 @@ from pathlib import Path
 from argparse import ArgumentParser
 
 import pandas as pd
-import PyQt6.QtWidgets as QtWidgets
+import PyQt5.QtWidgets as QtWidgets
 import numpy as np
 import pyqtgraph as pg
 
-from PyQt6.QtCore import pyqtSignal
+from PyQt5.QtCore import pyqtSignal
 
 import spikeinterface.full as si
 from wrangle import DataForGUI
