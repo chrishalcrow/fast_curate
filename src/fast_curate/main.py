@@ -12,7 +12,7 @@ import pandas as pd
 import PyQt6.QtWidgets as QtWidgets
 from PyQt6.QtWidgets import QStyleFactory
 from PyQt6.QtGui import QFont
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt 
 
 from curate import CurationWindow, load_sa_and_extensions
 from train import TrainWindow
@@ -100,8 +100,6 @@ class MainWindow(QtWidgets.QWidget):
         self.set_rest_of_page()
 
     def set_rest_of_page(self):
-
-        
 
         projectWidget = QtWidgets.QWidget()
         projectWidget.setStyleSheet("background-color: LightBlue")
@@ -257,7 +255,10 @@ class MainWindow(QtWidgets.QWidget):
 
     def make_apply_code(self):
 
-        
+        if self.local_model is None and self.repo_model is None:
+            models_folder = self.output_folder / "models"
+            models = list([model_folder for model_folder in models_folder.glob('*') if str(model_folder.name).startswith('.') is False])
+            self.local_model = models[0]
 
         code_text = "\n"
         code_text += "import spikinterface.full as si\n\n"
@@ -372,6 +373,9 @@ class MainWindow(QtWidgets.QWidget):
 
     def show_curation_window(self, selected_directory, analyzer_index):
 
+        #
+        from spikeinterface_gui import run_mainwindow
+
         self.labels = parse_labels(self.change_labels_button.text())
         self.config['labels'] = self.labels
         with open(self.output_folder / 'config.yaml', 'w') as file:
@@ -383,20 +387,43 @@ class MainWindow(QtWidgets.QWidget):
         analyzer_path = Path(selected_directory)
         sorting_analyzer, have_extension = load_sa_and_extensions(analyzer_path)
 
-        curation_output_folder = Path(self.output_folder) / Path(f"curation_data/{analyzer_index}_{analyzer_path.name}")
-        curation_output_folder.mkdir(parents=False, exist_ok=True)
+        import subprocess
+        import sys
 
-        self.curation_output_folder = curation_output_folder
+        print("Launching GUI in separate process...")
+        # This will block until the external process closes
+        subprocess.run([sys.executable, "/Users/christopherhalcrow/Work/fromgit/fast_curate/src/fast_curate/launch_sigui.py", '/Users/christopherhalcrow/Work/Harry_Project/fast_curate_demo/analyzers/M25_D19/kilosort4_sa'])
+        print("GUI closed, resuming main app.")
 
-        with open(curation_output_folder / "sorting_analyzer_path.txt", "w") as f:
-            f.write(str(selected_directory))
 
-        self.w = CurationWindow(sorting_analyzer, self.labels, curation_output_folder, have_extension)
-        self.w.resize(1600, 800)
 
-        self.w.update_signal.connect(self.make_curation_button_list)
+        # from spikeinterface_gui.backend_qt import QtMainWindow
+        # from spikeinterface_gui.controller import Controller
 
-        self.w.show()
+
+        # layout_dict={'zone1': ['curation', 'spikelist'], 'zone2': ['unitlist', 'merge'], 'zone3': ['trace', 'tracemap', 'spikeamplitude', 'spikedepth', 'spikerate'], 'zone4': [], 'zone5': ['probe'], 'zone6': ['ndscatter', 'similarity'], 'zone7': ['waveform', 'waveformheatmap'], 'zone8': ['correlogram', 'isi', 'metrics', 'mainsettings']}
+
+        # controller = Controller(
+        #     sorting_analyzer, backend="qt", verbose=False,
+        #     curation=True,
+        # )
+
+        # self.w = QtMainWindow(controller, layout_dict=layout_dict, user_settings=None)
+
+        # curation_output_folder = Path(self.output_folder) / Path(f"curation_data/{analyzer_index}_{analyzer_path.name}")
+        # curation_output_folder.mkdir(parents=False, exist_ok=True)
+
+        # self.curation_output_folder = curation_output_folder
+
+        # with open(curation_output_folder / "sorting_analyzer_path.txt", "w") as f:
+        #     f.write(str(selected_directory))
+
+        # self.w = CurationWindow(sorting_analyzer, self.labels, curation_output_folder, have_extension)
+        # self.w.resize(1600, 800)
+
+        # self.w.update_signal.connect(self.make_curation_button_list)
+
+        # self.w.show()
 
 
     def show_train_window(self, checked):
