@@ -62,7 +62,7 @@ def load_sa_and_extensions(analyzer_path):
     have_extension = {}
     sorting_analyzer = si.load_sorting_analyzer(analyzer_path, load_extensions=False)
     missing_an_extension = False
-    for extension in ['correlograms', 'unit_locations', 'templates', 'spike_amplitudes', 'spike_locations', 'quality_metrics', 'template_metrics']:
+    for extension in ['quality_metrics', 'template_metrics']:
         have_extension[extension] = True
         try:
             sorting_analyzer.load_extension(extension)

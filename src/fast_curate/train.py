@@ -5,7 +5,12 @@ from spikeinterface.curation import train_model
 from functools import partial
 from datetime import datetime
 
+from PyQt5.QtCore import pyqtSignal
 class TrainWindow(QtWidgets.QMainWindow):
+
+    update_signal = pyqtSignal()
+
+
     def __init__(self, project_folder, config):
 
         super().__init__()
@@ -32,12 +37,12 @@ class TrainWindow(QtWidgets.QMainWindow):
             else:
                 metric_names_set = metric_names_set.intersection(metric_names_for_one_sa)
 
-            labels.append(list(metric_list["label"].values))
+            labels.append(list(metric_list["quality"].values))
 
         train_model_kwargs['labels'] = labels
         parent_folder = project_folder / 'models' 
 
-        metric_names = [metric_name for metric_name in metric_names_set if metric_name not in ["index", "label", "unit_id"]]
+        metric_names = [metric_name for metric_name in metric_names_set if metric_name not in ["index", "quality", "unit_id"]]
         train_model_kwargs['metric_names'] = metric_names
 
         data_text = "Using the following analyzers:<br />"
@@ -144,3 +149,11 @@ class TrainWindow(QtWidgets.QMainWindow):
         print(f"Finished training models. Best model saved in in {folder}.")
 
         self.model_folder = folder
+
+
+    def closeEvent(self, event):
+        """Intercepts the user closing the app, to save the labels."""
+
+        self.update_signal.emit()
+        #self.parent_window.update_signal.emit()
+        event.accept()

@@ -1,4 +1,5 @@
 import sys
+import subprocess
 import ast
 import yaml
 import json
@@ -14,11 +15,9 @@ from PyQt5.QtWidgets import QStyleFactory
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt
 
-
-from curate import CurationWindow, load_sa_and_extensions
+from curate import load_sa_and_extensions
 from train import TrainWindow
-from validate import ValidateWindow
-
+from spikeinterface.curation import auto_label_units
 
 class MainWindow(QtWidgets.QWidget):
 
@@ -142,18 +141,16 @@ class MainWindow(QtWidgets.QWidget):
 
         curationTitleWidget = QtWidgets.QLabel(curation_title_text)
         curationTitleWidget.setStyleSheet("font-weight: bold; font-size: 20pt;")
-        saLayout.addWidget(curationTitleWidget)
+        saLayout.addWidget(curationTitleWidget,0,0,1,1)
         
         self.add_sa_button = QtWidgets.QPushButton("+ Add Sorting Analyzer Folder")
         self.add_sa_button.clicked.connect(self.selectDirectoryDialog)
-        saLayout.addWidget(self.add_sa_button,2,0,1,1)
+        saLayout.addWidget(self.add_sa_button,2,0,1,2)
 
         if self.curation:
             self.curate_text = QtWidgets.QLabel("Curated?")
-            saLayout.addWidget(self.curate_text,3,1,1,1)
+            saLayout.addWidget(self.curate_text,3,2)
 
-            self.reset_text = QtWidgets.QLabel("Reset")
-            saLayout.addWidget(self.reset_text,3,2,1,1)
         
         self.saLayout = saLayout
         saWidget.setLayout(saLayout)
@@ -166,17 +163,24 @@ class MainWindow(QtWidgets.QWidget):
         trainWidget = QtWidgets.QWidget()
         trainWidget.setStyleSheet("background-color: PeachPuff")
 
-        trainLayout = QtWidgets.QGridLayout()
+        self.trainLayout = QtWidgets.QGridLayout()
 
         trainTitleWidget = QtWidgets.QLabel("3. TRAIN")
         trainTitleWidget.setStyleSheet("font-weight: bold; font-size: 20pt;")
-        trainLayout.addWidget(trainTitleWidget,0,0)
+        self.trainLayout.addWidget(trainTitleWidget,0,0)
 
         train_button = QtWidgets.QPushButton("Train")
         train_button.clicked.connect(self.show_train_window)
-        trainLayout.addWidget(train_button,1,0)
+        self.trainLayout.addWidget(train_button,1,0)
 
-        trainWidget.setLayout(trainLayout)
+        trainTitleWidget = QtWidgets.QLabel("Choose your model:")
+        #trainTitleWidget.setStyleSheet("font-weight: bold; font-size: 20pt;")
+        self.trainLayout.addWidget(trainTitleWidget,2,0)
+
+
+        self.make_train_list()
+
+        trainWidget.setLayout(self.trainLayout)
 
         ###############
         # APPLY MODEL
@@ -194,10 +198,6 @@ class MainWindow(QtWidgets.QWidget):
         load_model_button = QtWidgets.QPushButton("+ Load local model")
         load_model_button.clicked.connect(self.selectModelDialog)
         applyLayout.addWidget(load_model_button,1,0,1,3)
-
-        # apply_local_model = QtWidgets.QPushButton("Apply")
-        # apply_local_model.clicked.connect(self.set_local_model)
-        # applyLayout.addWidget(apply_local_model,1,2,1,1)
 
         applyTitleWidget = QtWidgets.QLabel("OR")
         applyTitleWidget.setAlignment(Qt.AlignmentFlag.AlignCenter) 
@@ -218,7 +218,6 @@ class MainWindow(QtWidgets.QWidget):
 
         applyWidget.setLayout(applyLayout)
 
-
         ###############
         # VALIDATE
         ##############
@@ -226,17 +225,15 @@ class MainWindow(QtWidgets.QWidget):
         validateWidget = QtWidgets.QWidget()
         validateWidget.setStyleSheet("background-color: Pink")
 
-        validateLayout = QtWidgets.QGridLayout()
+        self.validateLayout = QtWidgets.QGridLayout()
 
-        validateTitleWidget = QtWidgets.QLabel("4. REFINE AND VALIDATE")
+        validateTitleWidget = QtWidgets.QLabel("4. VALIDATE AND REFINE")
         validateTitleWidget.setStyleSheet("font-weight: bold; font-size: 20pt;")
-        validateLayout.addWidget(validateTitleWidget,0,0)
+        self.validateLayout.addWidget(validateTitleWidget,0,0)
 
-        self.validate_button = QtWidgets.QPushButton("Validate")
-        self.validate_button.clicked.connect(self.show_validate_window)
-        validateLayout.addWidget(self.validate_button,1,0)
+        self.make_validate_button_list()
 
-        validateWidget.setLayout(validateLayout)
+        validateWidget.setLayout(self.validateLayout)
 
         
         self.main_layout.addWidget(saWidget)
@@ -253,6 +250,13 @@ class MainWindow(QtWidgets.QWidget):
         apply_code_button = QtWidgets.QPushButton("Generate code to apply model to analyzer")
         apply_code_button.clicked.connect(self.make_apply_code)
         self.main_layout.addWidget(apply_code_button)
+
+    def get_local_models(self):
+
+        models_folder = self.output_folder / "models"
+        model_folders = list(models_folder.glob('*'))
+
+        return model_folders
 
     def make_apply_code(self):
 
@@ -301,9 +305,9 @@ class MainWindow(QtWidgets.QWidget):
                     yaml.dump(self.config, file)
 
                 self.make_curation_button_list()
+                self.make_validate_button_list()
 
             else:
-
                 print(f"Selected directory {selected_directory} is not a SortingAnalyzer.")
 
     
@@ -328,23 +332,21 @@ class MainWindow(QtWidgets.QWidget):
 
         for i, (analyzer_index, selected_directory) in enumerate(self.config['analyzers'].items()):
 
-            if len(str(selected_directory)) > 40:
-               selected_directory_text_display = "..." + str(selected_directory)[-40:]
+            if len(str(selected_directory)) > 50:
+               selected_directory_text_display = "..." + str(selected_directory)[-50:]
             else:
                 selected_directory_text_display = selected_directory
 
             if self.curation:
                 curate_button = QtWidgets.QPushButton(f'Curate "{selected_directory_text_display}"')
                 curate_button.clicked.connect(partial(self.show_curation_window, selected_directory, analyzer_index))
-                self.saLayout.addWidget(curate_button,4+i,0)
+                self.saLayout.addWidget(curate_button,4+i,0,1,1)
         
-                delete_button = QtWidgets.QPushButton("X")
-
                 curation_output_folder = Path(self.output_folder) / Path(f"curation_data/{analyzer_index}_{Path(selected_directory).name}")
                 curation_output_folder.mkdir(exist_ok=True)
 
                 if (curation_output_folder / "num_units.txt").is_file():
-                    just_labels = pd.read_csv(curation_output_folder / "just_labels.csv")
+                    just_labels = pd.read_csv(curation_output_folder / "decision_data_with_metics.csv")
 
                     with open(curation_output_folder / "num_units.txt", 'r') as file:
                         num_units = int(file.read())
@@ -354,28 +356,29 @@ class MainWindow(QtWidgets.QWidget):
                 else:
                     not_curated_text = QtWidgets.QLabel("---")
 
-                self.saLayout.addWidget(not_curated_text,4+i,1)
-
-                delete_button.clicked.connect(partial(self.reset_sa, curation_output_folder))
-                self.saLayout.addWidget(delete_button,4+i,2)
+                self.saLayout.addWidget(not_curated_text,4+i,2)
 
             else:
                 curate_button = QtWidgets.QLabel(f'"{selected_directory_text_display}"')
                 self.saLayout.addWidget(curate_button,4+i,0)
 
-    def reset_sa(self, selected_directory):
+    def make_validate_button_list(self):
 
-        files_in_dir = list(selected_directory.glob('*'))
-        for curation_file in files_in_dir:
-            if curation_file.is_file():
-                curation_file.unlink()
+        for i, (analyzer_index, selected_directory) in enumerate(self.config['analyzers'].items()):
 
-        self.make_curation_button_list()
+            print(f"{analyzer_index=}")
+
+            if len(str(selected_directory)) > 40:
+               selected_directory_text_display = "..." + str(selected_directory)[-40:]
+            else:
+                selected_directory_text_display = selected_directory
+
+
+            curate_button = QtWidgets.QPushButton(f'Validate "{selected_directory_text_display}"')
+            curate_button.clicked.connect(partial(self.show_validate_window, selected_directory, analyzer_index))
+            self.validateLayout.addWidget(curate_button,4+i,0)
 
     def show_curation_window(self, selected_directory, analyzer_index):
-
-        #
-        from spikeinterface_gui import run_mainwindow
 
         self.labels = parse_labels(self.change_labels_button.text())
         self.config['labels'] = self.labels
@@ -386,57 +389,51 @@ class MainWindow(QtWidgets.QWidget):
         self.change_labels_button.setStyleSheet("background-color: LightBlue")
 
         analyzer_path = Path(selected_directory)
-        sorting_analyzer, have_extension = load_sa_and_extensions(analyzer_path)
-
-        import subprocess
-        import sys
 
         print("Launching GUI in separate process...")
         # This will block until the external process closes
-        subprocess.run([sys.executable, "/Users/christopherhalcrow/Work/fromgit/fast_curate/src/fast_curate/launch_sigui.py", '/Users/christopherhalcrow/Work/Harry_Project/fast_curate_demo/analyzers/M25_D19/kilosort4_sa'])
+        subprocess.run([sys.executable, "/Users/christopherhalcrow/Work/fromgit/fast_curate/src/fast_curate/launch_sigui.py", analyzer_path, f'{self.output_folder}', f'{analyzer_index}'])
         print("GUI closed, resuming main app.")
-
-
-
-        # from spikeinterface_gui.backend_qt import QtMainWindow
-        # from spikeinterface_gui.controller import Controller
-
-
-        # layout_dict={'zone1': ['curation', 'spikelist'], 'zone2': ['unitlist', 'merge'], 'zone3': ['trace', 'tracemap', 'spikeamplitude', 'spikedepth', 'spikerate'], 'zone4': [], 'zone5': ['probe'], 'zone6': ['ndscatter', 'similarity'], 'zone7': ['waveform', 'waveformheatmap'], 'zone8': ['correlogram', 'isi', 'metrics', 'mainsettings']}
-
-        # controller = Controller(
-        #     sorting_analyzer, backend="qt", verbose=False,
-        #     curation=True,
-        # )
-
-        # self.w = QtMainWindow(controller, layout_dict=layout_dict, user_settings=None)
-
-        # curation_output_folder = Path(self.output_folder) / Path(f"curation_data/{analyzer_index}_{analyzer_path.name}")
-        # curation_output_folder.mkdir(parents=False, exist_ok=True)
-
-        # self.curation_output_folder = curation_output_folder
-
-        # with open(curation_output_folder / "sorting_analyzer_path.txt", "w") as f:
-        #     f.write(str(selected_directory))
-
-        # self.w = CurationWindow(sorting_analyzer, self.labels, curation_output_folder, have_extension)
-        # self.w.resize(1600, 800)
-
-        # self.w.update_signal.connect(self.make_curation_button_list)
-
-        # self.w.show()
-
 
     def show_train_window(self, checked):
         self.w = TrainWindow(self.output_folder, self.config)
         self.w.resize(800, 600)
         self.w.show()
 
-    def show_validate_window(self, checked):
+        self.w.update_signal.connect(self.make_train_list)
 
-        self.w = ValidateWindow(self.labels, self.output_folder, self.config['analyzers'], self.local_model, self.repo_model)
-        self.w.resize(1600, 800)
-        self.w.show()
+    def make_train_list(self):
+        self.combo_box = QtWidgets.QComboBox(self)
+        model_folders = self.get_local_models()
+        model_names = [model_folder.name for model_folder in model_folders]
+        self.combo_box.addItems(model_names)
+        #self.combo_box.currentTextChanged.connect(self.selection_changed)
+       
+        self.trainLayout.addWidget(self.combo_box,3,0)
+
+    def selection_changed(self, text):
+        self.local_model = text
+        print(f"{self.local_model=}")
+
+    def show_validate_window(self, selected_directory, analyzer_index):
+
+        analyzer_path = Path(selected_directory)
+        sorting_analyzer, have_extension = load_sa_and_extensions(analyzer_path)
+
+        self.local_model = self.output_folder / "models" / self.combo_box.currentText()
+
+        if self.local_model is not None:
+            self.current_predicted_labels = auto_label_units(sorting_analyzer=sorting_analyzer, model_folder=self.local_model)
+        else:
+            self.current_predicted_labels = auto_label_units(sorting_analyzer=sorting_analyzer, repo_id=self.repo_model, trust_model=True)
+
+        model_labels_filepath = self.output_folder / (f"curation_data/{analyzer_index}_" + analyzer_path.name) / f"model_labels.csv"
+        self.current_predicted_labels.to_csv(model_labels_filepath, index_label="unit_id")
+
+        print("Launching GUI in separate process...")
+        # This will block until the external process closes
+        subprocess.run([sys.executable, "/Users/christopherhalcrow/Work/fromgit/fast_curate/src/fast_curate/launch_sigui_validate.py", analyzer_path, f'{self.output_folder}', f'{analyzer_index}'])
+        print("GUI closed, resuming main app.")
 
     def set_repo_model(self):
         self.local_model = None
@@ -504,8 +501,7 @@ def main():
         if len(config) == 0:
             print("No config file found")
             if labels is None:
-                print("No labels specified. Using 'good', 'bad'")
-                config['labels'] = ['good', 'bad']
+                config['labels'] = ['good', 'MUA', 'noise']
             else:
                 config['labels'] = labels
 
@@ -520,6 +516,7 @@ def main():
         custom_font.setFamily("courier new")
         app.setFont(custom_font)
         w = MainWindow(project_folder, config)
+        w.setWindowTitle('UnitRefine')
         w.show()
         app.exec()
 
@@ -536,12 +533,6 @@ def is_an_analyzer(directory):
     
     return False
 
-def is_a_model(directory):
-
-    return True
 
 if __name__ == "__main__":
     main()
-
-
-

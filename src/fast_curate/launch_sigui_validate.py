@@ -21,39 +21,39 @@ def my_custom_close_handler(event: QCloseEvent, window: QWidget, project_folder,
     """
     print("Intercepted: User is trying to close the external window!")
 
-    from spikeinterface.curation import validate_curation_dict
+    # from spikeinterface.curation import validate_curation_dict
 
 
 
-    curation_dict = check_json(window.controller.construct_final_curation())
+    # curation_dict = check_json(window.controller.construct_final_curation())
 
-    validate_curation_dict(curation_dict)
+    # validate_curation_dict(curation_dict)
 
-    labelled_unit_ids = []
-    labels = []
+    # labelled_unit_ids = []
+    # labels = []
 
-    print(f"{curation_dict['manual_labels']=}")
+    # print(f"{curation_dict['manual_labels']=}")
 
-    for row in curation_dict['manual_labels']:
-        print(f"{row=}")
-        labelled_unit_ids.append(int(row['unit_id']))
-        labels.append(row['quality'][0])
+    # for row in curation_dict['manual_labels']:
+    #     print(f"{row=}")
+    #     labelled_unit_ids.append(int(row['unit_id']))
+    #     labels.append(row['quality'][0])
 
 
-    qms = analyzer.get_extension("quality_metrics").get_data()
-    tms = analyzer.get_extension("template_metrics").get_data()
-    all_metrics = pd.concat([qms, tms], axis=1)
+    # qms = analyzer.get_extension("quality_metrics").get_data()
+    # tms = analyzer.get_extension("template_metrics").get_data()
+    # all_metrics = pd.concat([qms, tms], axis=1)
 
-    labelled_qms = deepcopy(all_metrics.iloc[labelled_unit_ids])
-    labelled_qms['quality'] = labels
+    # labelled_qms = deepcopy(all_metrics.iloc[labelled_unit_ids])
+    # labelled_qms['quality'] = labels
 
-    print(f"{labelled_qms=}")
+    # print(f"{labelled_qms=}")
 
-    labelled_qms.to_csv(save_folder / "decision_data_with_metics.csv", index_label="unit_id")
+#    labelled_qms.to_csv(save_folder / "decision_data_with_metics.csv", index_label="unit_id")
 
-    num_units = str(analyzer.get_num_units())
-    with open(save_folder / "num_units.txt", 'w') as f:
-        f.write(num_units)
+    # num_units = str(analyzer.get_num_units())
+    # with open(save_folder / "num_units.txt", 'w') as f:
+    #     f.write(num_units)
 
 
 argv = sys.argv[1:]
@@ -72,22 +72,24 @@ analyzer_index = int(args.analyzer_index)
 save_folder = project_folder / (f"curation_data/{analyzer_index}_" + analyzer_folder.name)
 save_folder.mkdir(exist_ok=True, parents=True)
 
-decisions = pd.read_csv(save_folder / "decision_data_with_metics.csv")
+#decisions = pd.read_csv(save_folder / "decision_data_with_metics.csv")
 
-
+model_decisions = pd.read_csv(save_folder / "model_labels.csv")
 
 analyzer = si.load_sorting_analyzer(analyzer_folder)
 
-from spikeinterface.curation.curation_model import CurationModel
-
 manual_labels = []
 for unit_id in analyzer.unit_ids:
-    decision = {"unit_id": unit_id, "quality": decisions[decisions['unit_id'] == unit_id]['quality'].values}
-    if len(decision['quality']) > 0:
+    decision = {"unit_id": unit_id, 
+                "model": model_decisions[model_decisions['unit_id'] == unit_id]['prediction'].values,
+                }
+    if len(decision['model']) > 0:
         manual_labels.append(decision)
+    
 
 label_definitions = {
     "quality": dict(name="quality", label_options=["good", "MUA", "noise"], exclusive=True),
+    "model": dict(name="model", label_options=["good", "MUA", "noise"], exclusive=True),
 }
 
 curation_dict = dict(
@@ -97,11 +99,12 @@ curation_dict = dict(
     label_definitions=label_definitions,
 )
 
-
 print(f"unit refine {curation_dict=}")
 
+print()
+
 controller = Controller(
-        analyzer, backend="qt", curation=True, curation_data=curation_dict, verbose=True
+        analyzer, backend="qt", curation=True, curation_data=curation_dict, verbose=True,
         #displayed_unit_properties = ["quality", "firing_rate", "num_spikes", "x", "y", "amplitude_median", "snr", "rp_violations"]
 )
 
