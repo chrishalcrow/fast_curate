@@ -26,8 +26,8 @@ class TrainWindow(QtWidgets.QMainWindow):
         labels = []
         metrics_paths = []
         metrics = []
-        for analyzer_index, (analyzer_name, analyzer) in enumerate(project.analyzers.items()):
-            analyzer_folder = project.folder_name / f"analyzers/{analyzer_name}"
+        for analyzer in project.analyzers.values():
+            analyzer_folder = project.folder_name / analyzer['analyzer_in_project']
             
             labels_path = analyzer_folder / "labels.csv"
             labels_df = pd.read_csv(labels_path)

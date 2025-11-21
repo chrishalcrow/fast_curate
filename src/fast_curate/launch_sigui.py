@@ -35,7 +35,10 @@ def my_custom_close_handler(event: QCloseEvent, window: QWidget, project_folder,
     for row in curation_dict['manual_labels']:
         print(f"{row=}")
         labelled_unit_ids.append(int(row['unit_id']))
-        labels.append(row['labels']['quality'][0])
+        if row.get('labels') is None:
+            labels.append(row['quality'][0])
+        else:
+            labels.append(row['labels']['quality'][0])
 
     qms = analyzer.get_extension("quality_metrics").get_data()
     tms = analyzer.get_extension("template_metrics").get_data()
@@ -49,8 +52,6 @@ def my_custom_close_handler(event: QCloseEvent, window: QWidget, project_folder,
     all_metrics.to_csv(save_folder / "all_metrics.csv", index_label="unit_id")
     labelled_metrics.to_csv(save_folder / "labelled_metrics.csv", index_label="unit_id")
     labels_df.to_csv(save_folder / "labels.csv", index_label="unit_id")
-
-
 
 
 argv = sys.argv[1:]
@@ -67,12 +68,13 @@ project_folder = Path(args.project_folder)
 analyzer_index = int(args.analyzer_index)
 
 save_folder = project_folder / (f"analyzers/{analyzer_index}_" + analyzer_folder.name)
-#save_folder.mkdir(exist_ok=True, parents=True)
 
-if Path(save_folder / "metics.csv").is_file():
-    decisions = pd.read_csv(save_folder / "decision_data_with_metics.csv")
+if Path(save_folder / "labels.csv").is_file():
+    decisions = pd.read_csv(save_folder / "labels.csv")
 else:
     decisions = pd.DataFrame(columns=['unit_id', 'quality'])
+
+print(f"{decisions=}")
 
 analyzer = si.load_sorting_analyzer(analyzer_folder)
 
@@ -94,9 +96,6 @@ curation_dict = dict(
     manual_labels=manual_labels,
     label_definitions=label_definitions,
 )
-
-
-print(f"unit refine {curation_dict=}")
 
 controller = Controller(
         analyzer, backend="qt", curation=True, curation_data=curation_dict, verbose=True

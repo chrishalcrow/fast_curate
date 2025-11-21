@@ -23,8 +23,6 @@ def my_custom_close_handler(event: QCloseEvent, window: QWidget, project_folder,
 
     # from spikeinterface.curation import validate_curation_dict
 
-
-
     # curation_dict = check_json(window.controller.construct_final_curation())
 
     # validate_curation_dict(curation_dict)
@@ -61,17 +59,17 @@ argv = sys.argv[1:]
 parser = argparse.ArgumentParser(description='spikeinterface-gui')
 parser.add_argument('analyzer_folder', help='SortingAnalyzer folder path', default=None, nargs='?')
 parser.add_argument('project_folder', help='Project folder path', default=None, nargs='?')
-parser.add_argument('analyzer_index', help='Project folder path', default=None, nargs='?')
+parser.add_argument('analyzer_in_project', help='Project folder path', default=None, nargs='?')
 parser.add_argument('model_predictions_file')
 
 args = parser.parse_args(argv)
 
 analyzer_folder = Path(args.analyzer_folder)
 project_folder = Path(args.project_folder)
-analyzer_index = int(args.analyzer_index)
+analyzer_in_project = Path(args.analyzer_in_project)
 model_predictions_file = Path(args.model_predictions_file)
 
-save_folder = project_folder / (f"curation_data/{analyzer_index}_" + analyzer_folder.name)
+save_folder = project_folder / analyzer_in_project
 save_folder.mkdir(exist_ok=True, parents=True)
 
 model_decisions = pd.read_csv(model_predictions_file)
@@ -99,12 +97,8 @@ curation_dict = dict(
     label_definitions=label_definitions,
 )
 
-print(f"unit refine {curation_dict=}")
-print()
-
 controller = Controller(
         analyzer, backend="qt", curation=True, curation_data=curation_dict, verbose=True,
-        #displayed_unit_properties = ["quality", "firing_rate", "num_spikes", "x", "y", "amplitude_median", "snr", "rp_violations"]
 )
 
 layout_dict={'zone1': ['unitlist'], 'zone2': [], 'zone3': ['waveform'], 'zone4': ['correlogram'], 'zone5': ['spikeamplitude'], 'zone6': [], 'zone7': [], 'zone8': ['spikerate']}
