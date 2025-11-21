@@ -62,19 +62,19 @@ parser = argparse.ArgumentParser(description='spikeinterface-gui')
 parser.add_argument('analyzer_folder', help='SortingAnalyzer folder path', default=None, nargs='?')
 parser.add_argument('project_folder', help='Project folder path', default=None, nargs='?')
 parser.add_argument('analyzer_index', help='Project folder path', default=None, nargs='?')
+parser.add_argument('model_predictions_file')
 
 args = parser.parse_args(argv)
 
 analyzer_folder = Path(args.analyzer_folder)
 project_folder = Path(args.project_folder)
 analyzer_index = int(args.analyzer_index)
+model_predictions_file = Path(args.model_predictions_file)
 
 save_folder = project_folder / (f"curation_data/{analyzer_index}_" + analyzer_folder.name)
 save_folder.mkdir(exist_ok=True, parents=True)
 
-#decisions = pd.read_csv(save_folder / "decision_data_with_metics.csv")
-
-model_decisions = pd.read_csv(save_folder / "model_labels.csv")
+model_decisions = pd.read_csv(model_predictions_file)
 
 analyzer = si.load_sorting_analyzer(analyzer_folder)
 
@@ -100,7 +100,6 @@ curation_dict = dict(
 )
 
 print(f"unit refine {curation_dict=}")
-
 print()
 
 controller = Controller(

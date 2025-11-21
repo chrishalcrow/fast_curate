@@ -10,10 +10,11 @@ class TrainWindow(QtWidgets.QMainWindow):
 
     update_signal = pyqtSignal()
 
-
-    def __init__(self, project_folder, config):
+    def __init__(self, project):
 
         super().__init__()
+
+        project_folder = project.folder_name
 
         train_model_kwargs = {}
 
@@ -22,14 +23,27 @@ class TrainWindow(QtWidgets.QMainWindow):
 
         self.model_folder = None
 
+        labels = []
+        metrics_paths = []
+        metrics = []
+        for analyzer_index, (analyzer_name, analyzer) in enumerate(project.analyzers.items()):
+            analyzer_folder = project.folder_name / f"analyzers/{analyzer_name}"
+            
+            labels_path = analyzer_folder / "labels.csv"
+            labels_df = pd.read_csv(labels_path)
+            labels.append(labels_df['quality'].values)
+
+            metrics_path = analyzer_folder / "labelled_metrics.csv"
+            metrics_paths.append(metrics_path)
+            metrics.append(pd.read_csv(metrics_path))
+
         global_curation_data_folder = project_folder / Path("curation_data")
         curation_data_folders = [f for f in global_curation_data_folder.glob('*') if not str(f.name).startswith('.')]
-        csv_paths = [str(curation_data_folder / "decision_data_with_metics.csv") for curation_data_folder in curation_data_folders]
-        metrics = [pd.read_csv(csv_path) for csv_path in csv_paths]
-        train_model_kwargs['metrics_paths'] = csv_paths
-
+        #csv_paths = [str(curation_data_folder / "decision_data_with_metics.csv") for curation_data_folder in curation_data_folders]
+        #metrics = [pd.read_csv(csv_path) for csv_path in csv_paths]
+        train_model_kwargs['metrics_paths'] = metrics_paths
         metric_names_set = set()
-        labels = []
+        
         for metric_list in metrics:
             metric_names_for_one_sa = set(metric_list.columns)
             if len(metric_names_set) == 0:
@@ -37,7 +51,7 @@ class TrainWindow(QtWidgets.QMainWindow):
             else:
                 metric_names_set = metric_names_set.intersection(metric_names_for_one_sa)
 
-            labels.append(list(metric_list["quality"].values))
+            #labels.append(list(metric_list["quality"].values))
 
         train_model_kwargs['labels'] = labels
         parent_folder = project_folder / 'models' 
@@ -78,7 +92,7 @@ class TrainWindow(QtWidgets.QMainWindow):
         self.testSizeForm.setStyleSheet("background-color: white")
 
         trainButton = QtWidgets.QPushButton("Train models")
-        trainButton.clicked.connect(partial(self.do_training, train_model_kwargs, parent_folder))
+        trainButton.clicked.connect(partial(self.do_training, train_model_kwargs, parent_folder, project))
 
         codeButton = QtWidgets.QPushButton("Generate code to train a model")
         codeButton.clicked.connect(partial(self.generate_code, train_model_kwargs, parent_folder))
@@ -127,7 +141,7 @@ class TrainWindow(QtWidgets.QMainWindow):
         print(code_text)
 
 
-    def do_training(self, train_model_kwargs, parent_folder):
+    def do_training(self, train_model_kwargs, parent_folder, project):
 
         imputation_strategies = eval(self.imputersForm.text())
         scaling_techniques = eval(self.scalarsForm.text())
@@ -135,6 +149,7 @@ class TrainWindow(QtWidgets.QMainWindow):
         test_size = eval(self.testSizeForm.text())
 
         folder = parent_folder / 'model_{date:%Y-%m-%d_%H:%M:%S}'.format( date=datetime.now() )  
+        model_name = folder.name
 
         train_model(
             mode="csv",
@@ -145,6 +160,8 @@ class TrainWindow(QtWidgets.QMainWindow):
             folder=folder,
             **train_model_kwargs,
         )
+
+        project.models.append(model_name)
 
         print(f"Finished training models. Best model saved in in {folder}.")
 

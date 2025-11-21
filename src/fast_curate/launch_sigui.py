@@ -21,13 +21,11 @@ def my_custom_close_handler(event: QCloseEvent, window: QWidget, project_folder,
     """
     print("Intercepted: User is trying to close the external window!")
 
-    from spikeinterface.curation import validate_curation_dict
+    #from spikeinterface.curation import validate_curation_dict
 
+    #curation_dict = check_json(window.controller.construct_final_curation())
 
-
-    curation_dict = check_json(window.controller.construct_final_curation())
-
-    validate_curation_dict(curation_dict)
+    #validate_curation_dict(curation_dict)
 
     labelled_unit_ids = []
     labels = []
@@ -37,23 +35,22 @@ def my_custom_close_handler(event: QCloseEvent, window: QWidget, project_folder,
     for row in curation_dict['manual_labels']:
         print(f"{row=}")
         labelled_unit_ids.append(int(row['unit_id']))
-        labels.append(row['quality'][0])
-
+        labels.append(row['labels']['quality'][0])
 
     qms = analyzer.get_extension("quality_metrics").get_data()
     tms = analyzer.get_extension("template_metrics").get_data()
     all_metrics = pd.concat([qms, tms], axis=1)
 
-    labelled_qms = deepcopy(all_metrics.iloc[labelled_unit_ids])
-    labelled_qms['quality'] = labels
+    labels_df = pd.DataFrame()
+    labels_df['quality'] = labels
 
-    print(f"{labelled_qms=}")
+    labelled_metrics = all_metrics[all_metrics.index.isin(labelled_unit_ids)]
 
-    labelled_qms.to_csv(save_folder / "decision_data_with_metics.csv", index_label="unit_id")
+    all_metrics.to_csv(save_folder / "all_metrics.csv", index_label="unit_id")
+    labelled_metrics.to_csv(save_folder / "labelled_metrics.csv", index_label="unit_id")
+    labels_df.to_csv(save_folder / "labels.csv", index_label="unit_id")
 
-    num_units = str(analyzer.get_num_units())
-    with open(save_folder / "num_units.txt", 'w') as f:
-        f.write(num_units)
+
 
 
 argv = sys.argv[1:]
@@ -69,12 +66,13 @@ analyzer_folder = Path(args.analyzer_folder)
 project_folder = Path(args.project_folder)
 analyzer_index = int(args.analyzer_index)
 
-save_folder = project_folder / (f"curation_data/{analyzer_index}_" + analyzer_folder.name)
-save_folder.mkdir(exist_ok=True, parents=True)
+save_folder = project_folder / (f"analyzers/{analyzer_index}_" + analyzer_folder.name)
+#save_folder.mkdir(exist_ok=True, parents=True)
 
-decisions = pd.read_csv(save_folder / "decision_data_with_metics.csv")
-
-
+if Path(save_folder / "metics.csv").is_file():
+    decisions = pd.read_csv(save_folder / "decision_data_with_metics.csv")
+else:
+    decisions = pd.DataFrame(columns=['unit_id', 'quality'])
 
 analyzer = si.load_sorting_analyzer(analyzer_folder)
 

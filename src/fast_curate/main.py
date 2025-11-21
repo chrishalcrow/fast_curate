@@ -19,9 +19,108 @@ from curate import load_sa_and_extensions
 from train import TrainWindow
 from spikeinterface.curation import auto_label_units
 
+class UnitRefineProject():
+
+    def __init__(self, folder_name):
+
+        self.folder_name = folder_name
+        self.analyzers = {}
+        self.models = []
+        self.config = {}
+
+    def save(self, folder_name=None):
+
+        if folder_name is None:
+            folder_name = self.folder_name
+
+        Path(folder_name).mkdir(exist_ok=True)
+
+        Path(folder_name / "analyzers").mkdir(exist_ok=True)
+        Path(folder_name / "models").mkdir(exist_ok=True)
+
+        with open(folder_name / "config.json", 'w') as f:
+            json.dump(self.config, f)
+
+        for analyzer_name, analyzer_dict in self.analyzers.items():
+
+            path = analyzer_dict.get('path')
+
+            save_path = Path(folder_name / "analyzers" / f"{analyzer_name}_{Path(path).name}")
+            save_path.mkdir(exist_ok=True)
+
+            if path is not None:
+                with open(save_path / 'path.txt', 'w') as output:
+                    output.write(path)
+
+            # metrics = analyzer_dict.get('metrics')
+            # if metrics is not None:
+            #     metrics.to_csv(save_path / 'metrics.csv')
+
+            curation = analyzer_dict.get('labels')
+            if curation is not None:
+                curation.to_csv(save_path / 'labels.csv')
+
+
+    def add_analyzer(self, directory):
+
+        analyzer_keys = self.analyzers.keys()
+        if len(analyzer_keys) > 0:
+            max_key = max(list(analyzer_keys))
+            new_key = max_key + 1
+        else:
+            new_key = 0
+
+        self.analyzers[new_key] = {'path': directory}
+
+
+
+def load_project(folder_name):
+
+    folder_name = Path(folder_name)
+
+    project = UnitRefineProject(folder_name)
+
+    config_path = folder_name / "config.json"
+
+    analyzers_folder = folder_name / "analyzers"
+    analyzer_folders = list(analyzers_folder.glob('*/'))
+
+    for analyzer_folder in analyzer_folders:
+
+        analyzer_dict = {}
+
+        with open(analyzer_folder / 'path.txt' ,"r") as f:
+            analyzer_path = f.read()
+
+        analyzer_dict['path'] = analyzer_path
+
+        all_metrics = pd.read_csv(analyzer_folder / 'all_metrics.csv')
+        analyzer_dict['all_metrics'] = all_metrics
+
+        labelled_metrics = pd.read_csv(analyzer_folder / 'labelled_metrics.csv')
+        analyzer_dict['labelled_metrics'] = labelled_metrics
+
+        curation = pd.read_csv(analyzer_folder / 'labels.csv')
+        analyzer_dict['labels'] = curation
+
+        project.analyzers[analyzer_folder.name] = analyzer_dict
+            
+    models_folder = folder_name / "models"
+    model_folders = list(models_folder.glob('*/'))
+
+    for model_folder in model_folders:
+
+        # models_dict = {}
+        # models_dict['path'] = model_folder
+
+        project.models.append(model_folder.name)
+
+    return project
+            
+
 class MainWindow(QtWidgets.QWidget):
 
-    def __init__(self, output_folder, config):
+    def __init__(self, project):
         
         super().__init__()
         
@@ -32,26 +131,28 @@ class MainWindow(QtWidgets.QWidget):
         self.local_model = None
         self.repo_model = None
 
-        self.output_folder = output_folder
+        self.output_folder = project.folder_name
 
-        self.config = {}
+        self.project = project
 
-        if config.get('labels') is not None:
-            self.config['labels'] = config['labels']
-        else:
-            self.config['labels'] = {}
-        self.labels = self.config['labels']
+        # if config.get('labels') is not None:
+        #     self.config['labels'] = config['labels']
+        # else:
+        #     self.config['labels'] = {}
+        # self.labels = self.config['labels']
 
-        if config.get('analyzers') is not None:
-            self.config['analyzers'] = config['analyzers']
-        else:
-            self.config['analyzers'] = {}
+        # if config.get('analyzers') is not None:
+        #     self.config['analyzers'] = config['analyzers']
+        # else:
+        #     self.config['analyzers'] = {}
 
-        for analyzer_path in self.config['analyzers'].values():
-            if not Path(analyzer_path).is_dir():
-                raise FileNotFoundError(f"Folder {analyzer_path} does not exist. Please update the config file at {output_folder / 'config.yaml'}.")
+        # for analyzer_path in self.config['analyzers'].values():
+        #     if not Path(analyzer_path).is_dir():
+        #         raise FileNotFoundError(f"Folder {analyzer_path} does not exist. Please update the config file at {output_folder / 'config.yaml'}.")
 
-        self.curation = config.get('curate')
+        # self.curation = config.get('curate')
+
+        self.curation = True
 
         self.main_layout = QtWidgets.QGridLayout(self)
 
@@ -117,11 +218,11 @@ class MainWindow(QtWidgets.QWidget):
             labels_text = QtWidgets.QLabel("Labels: ")
             labels_text.setAlignment(Qt.AlignmentFlag.AlignRight) 
             projectLayout.addWidget(labels_text,2,0,1,1)
-            self.change_labels_button = QtWidgets.QLineEdit(f"{self.labels}")
-            if self.config.get('labels') is not None:
-                self.change_labels_button.setReadOnly(True)
-            else:
-                self.change_labels_button.setStyleSheet("background-color: White")
+            self.change_labels_button = QtWidgets.QLineEdit(f"good, SUA, MUA")
+            # if self.config.get('labels') is not None:
+            #     self.change_labels_button.setReadOnly(True)
+            # else:
+            #     self.change_labels_button.setStyleSheet("background-color: White")
             projectLayout.addWidget(self.change_labels_button,2,1,1,2)
 
         projectWidget.setLayout(projectLayout)
@@ -297,12 +398,8 @@ class MainWindow(QtWidgets.QWidget):
 
             if is_an_analyzer(selected_directory):
 
-                self.sorting_analyzer_paths.append(selected_directory)
-
-                self.config['analyzers'] = add_analyzer(self.config['analyzers'], selected_directory)
-
-                with open(self.output_folder / 'config.yaml', 'w') as file:
-                    yaml.dump(self.config, file)
+                self.project.add_analyzer(selected_directory)
+                self.project.save()
 
                 self.make_curation_button_list()
                 self.make_validate_button_list()
@@ -330,7 +427,9 @@ class MainWindow(QtWidgets.QWidget):
             
     def make_curation_button_list(self, curation=False):
 
-        for i, (analyzer_index, selected_directory) in enumerate(self.config['analyzers'].items()):
+        for analyzer_index, (analyzer_name, analyzer) in enumerate(self.project.analyzers.items()):
+
+            selected_directory = analyzer['path']
 
             if len(str(selected_directory)) > 50:
                selected_directory_text_display = "..." + str(selected_directory)[-50:]
@@ -340,9 +439,9 @@ class MainWindow(QtWidgets.QWidget):
             if self.curation:
                 curate_button = QtWidgets.QPushButton(f'Curate "{selected_directory_text_display}"')
                 curate_button.clicked.connect(partial(self.show_curation_window, selected_directory, analyzer_index))
-                self.saLayout.addWidget(curate_button,4+i,0,1,1)
+                self.saLayout.addWidget(curate_button,4+analyzer_index,0,1,1)
         
-                curation_output_folder = Path(self.output_folder) / Path(f"curation_data/{analyzer_index}_{Path(selected_directory).name}")
+                curation_output_folder = Path(self.project.folder_name) / Path(f"analyzers/{analyzer_index}_{Path(selected_directory).name}")
                 curation_output_folder.mkdir(exist_ok=True)
 
                 if (curation_output_folder / "num_units.txt").is_file():
@@ -356,17 +455,19 @@ class MainWindow(QtWidgets.QWidget):
                 else:
                     not_curated_text = QtWidgets.QLabel("---")
 
-                self.saLayout.addWidget(not_curated_text,4+i,2)
+                self.saLayout.addWidget(not_curated_text,4+analyzer_index,2)
 
             else:
                 curate_button = QtWidgets.QLabel(f'"{selected_directory_text_display}"')
-                self.saLayout.addWidget(curate_button,4+i,0)
+                self.saLayout.addWidget(curate_button,4+analyzer_index,0)
 
     def make_validate_button_list(self):
 
-        for i, (analyzer_index, selected_directory) in enumerate(self.config['analyzers'].items()):
+        for analyzer_index, (analyzer_name, analyzer) in enumerate(self.project.analyzers.items()):
 
-            print(f"{analyzer_index=}")
+            #print(f"{analyzer_index=}")
+
+            selected_directory = analyzer['path']
 
             if len(str(selected_directory)) > 40:
                selected_directory_text_display = "..." + str(selected_directory)[-40:]
@@ -376,14 +477,9 @@ class MainWindow(QtWidgets.QWidget):
 
             curate_button = QtWidgets.QPushButton(f'Validate "{selected_directory_text_display}"')
             curate_button.clicked.connect(partial(self.show_validate_window, selected_directory, analyzer_index))
-            self.validateLayout.addWidget(curate_button,4+i,0)
+            self.validateLayout.addWidget(curate_button,4+analyzer_index,0)
 
     def show_curation_window(self, selected_directory, analyzer_index):
-
-        self.labels = parse_labels(self.change_labels_button.text())
-        self.config['labels'] = self.labels
-        with open(self.output_folder / 'config.yaml', 'w') as file:
-            yaml.dump(self.config, file)
 
         self.change_labels_button.setReadOnly(True)
         self.change_labels_button.setStyleSheet("background-color: LightBlue")
@@ -392,11 +488,12 @@ class MainWindow(QtWidgets.QWidget):
 
         print("Launching GUI in separate process...")
         # This will block until the external process closes
+        print(f"{self.output_folder=}")
         subprocess.run([sys.executable, "/Users/christopherhalcrow/Work/fromgit/fast_curate/src/fast_curate/launch_sigui.py", analyzer_path, f'{self.output_folder}', f'{analyzer_index}'])
         print("GUI closed, resuming main app.")
 
     def show_train_window(self, checked):
-        self.w = TrainWindow(self.output_folder, self.config)
+        self.w = TrainWindow(self.project)
         self.w.resize(800, 600)
         self.w.show()
 
@@ -420,38 +517,24 @@ class MainWindow(QtWidgets.QWidget):
         analyzer_path = Path(selected_directory)
         sorting_analyzer, have_extension = load_sa_and_extensions(analyzer_path)
 
-        self.local_model = self.output_folder / "models" / self.combo_box.currentText()
+        current_model_name = self.combo_box.currentText()
 
-        if self.local_model is not None:
-            self.current_predicted_labels = auto_label_units(sorting_analyzer=sorting_analyzer, model_folder=self.local_model)
-        else:
-            self.current_predicted_labels = auto_label_units(sorting_analyzer=sorting_analyzer, repo_id=self.repo_model, trust_model=True)
+        self.local_model = self.output_folder / "models" / current_model_name
 
-        model_labels_filepath = self.output_folder / (f"curation_data/{analyzer_index}_" + analyzer_path.name) / f"model_labels.csv"
+        self.current_predicted_labels = auto_label_units(sorting_analyzer=sorting_analyzer, model_folder=self.local_model)
+
+        model_labels_filepath = self.output_folder / f"analyzers/labels_from_{current_model_name}.csv"
         self.current_predicted_labels.to_csv(model_labels_filepath, index_label="unit_id")
 
         print("Launching GUI in separate process...")
         # This will block until the external process closes
-        subprocess.run([sys.executable, "/Users/christopherhalcrow/Work/fromgit/fast_curate/src/fast_curate/launch_sigui_validate.py", analyzer_path, f'{self.output_folder}', f'{analyzer_index}'])
+        subprocess.run([sys.executable, "/Users/christopherhalcrow/Work/fromgit/fast_curate/src/fast_curate/launch_sigui_validate.py", analyzer_path, f'{self.output_folder}', f'{analyzer_index}', f'{model_labels_filepath}'])
         print("GUI closed, resuming main app.")
 
     def set_repo_model(self):
         self.local_model = None
         self.repo_model = self.repo_id_button.text()
 
-
-def add_analyzer(analyzers, directory):
-
-    analyzer_keys = analyzers.keys()
-    if len(analyzer_keys) > 0:
-        max_key = max(list(analyzer_keys))
-        new_key = max_key + 1
-    else:
-        new_key = 0
-
-    analyzers[new_key] = directory
-
-    return analyzers
 
 def parse_labels(labels_string):
 
@@ -480,33 +563,30 @@ def main():
         
         labels = args.labels
         project_folder = Path(args.project_folder).resolve()
-        config_filepath = project_folder / "config.yaml"
+        config_filepath = project_folder / "config.json"
 
         config = {}
         if project_folder.is_dir():
             print("Project already exists. Loading config file...")
-            if config_filepath.is_file():
-                with open(config_filepath) as stream:
-                    config = yaml.safe_load(stream)
+            project = load_project(project_folder)
+            # if config_filepath.is_file():
+            #     with open(config_filepath) as stream:
+            #         config = yaml.safe_load(stream)
 
-                if labels is not None:
-                    inputted_labels = labels
-                    if labels != config['labels']:
-                        print(f"User inputted labels {inputted_labels} do not match labels in config file {config['labels']}")
-                        print("Using labels in config file.")
         else:
             print("Project Folder does not exist. Creating now...")
-            project_folder.mkdir()
+            project = UnitRefineProject(project_folder)
+            project.save()
 
-        if len(config) == 0:
-            print("No config file found")
-            if labels is None:
-                config['labels'] = ['good', 'MUA', 'noise']
-            else:
-                config['labels'] = labels
+        # if len(config) == 0:
+        #     print("No config file found")
+        #     if labels is None:
+        #         config['labels'] = ['good', 'MUA', 'noise']
+        #     else:
+        #         config['labels'] = labels
 
-        curation_data_folder = project_folder / "curation_data"
-        curation_data_folder.mkdir(exist_ok=True)
+        # curation_data_folder = project_folder / "curation_data"
+        # curation_data_folder.mkdir(exist_ok=True)
 
         app = QtWidgets.QApplication(sys.argv)
 
@@ -515,7 +595,7 @@ def main():
         custom_font = QFont()
         custom_font.setFamily("courier new")
         app.setFont(custom_font)
-        w = MainWindow(project_folder, config)
+        w = MainWindow(project)
         w.setWindowTitle('UnitRefine')
         w.show()
         app.exec()
