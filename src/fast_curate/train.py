@@ -60,9 +60,9 @@ class TrainWindow(QtWidgets.QMainWindow):
         train_model_kwargs['metric_names'] = metric_names
 
         data_text = "Using the following analyzers:<br />"
-        for curation_data_folder, metric_data in zip(curation_data_folders, metrics):
+        for analyzer_dict, metric_data in zip(project.analyzers.values(), metrics):
 
-            data_text += f"{curation_data_folder}: {len(metric_data)} units curated.<br />"
+            data_text += f"{analyzer_dict['path']}: {len(metric_data)} units curated.<br />"
 
         data_text += f"<br />Metrics shared by all analyzer are: {metric_names}."
 
@@ -149,7 +149,6 @@ class TrainWindow(QtWidgets.QMainWindow):
         test_size = eval(self.testSizeForm.text())
 
         folder = parent_folder / 'model_{date:%Y-%m-%d_%H:%M:%S}'.format( date=datetime.now() )  
-        model_name = folder.name
 
         train_model(
             mode="csv",
@@ -161,7 +160,7 @@ class TrainWindow(QtWidgets.QMainWindow):
             **train_model_kwargs,
         )
 
-        project.models.append(model_name)
+        project.models.append(folder)
 
         print(f"Finished training models. Best model saved in in {folder}.")
 

@@ -98,8 +98,7 @@ curation_dict = dict(
 )
 
 controller = Controller(
-        analyzer, backend="qt", curation=True, curation_data=curation_dict, verbose=True
-        #displayed_unit_properties = ["quality", "firing_rate", "num_spikes", "x", "y", "amplitude_median", "snr", "rp_violations"]
+        analyzer, backend="qt", curation=True, curation_data=curation_dict
 )
 
 layout_dict={'zone1': ['unitlist'], 'zone2': [], 'zone3': ['waveform'], 'zone4': ['correlogram'], 'zone5': ['spikeamplitude'], 'zone6': [], 'zone7': [], 'zone8': ['spikerate']}

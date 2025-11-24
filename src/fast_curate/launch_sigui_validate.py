@@ -4,14 +4,12 @@ import spikeinterface.full as si
 
 from PyQt5.QtWidgets import QWidget
 from PyQt5.QtGui import QCloseEvent
-import sys
 from spikeinterface_gui.controller import Controller
 from spikeinterface_gui.backend_qt import QtMainWindow
+from pyqtgraph import mkQApp
 
-import functools # Useful for passing extra arguments, though not strictly required here
+import functools
 from pathlib import Path
-from spikeinterface.core.core_tools import check_json
-from copy import deepcopy
 import pandas as pd
 
 
@@ -90,6 +88,8 @@ label_definitions = {
     "model": dict(name="model", label_options=["good", "MUA", "noise"], exclusive=True),
 }
 
+extra_unit_properties = {'confidence': model_decisions['probability'].values}
+
 curation_dict = dict(
     format_version="2",
     unit_ids=analyzer.unit_ids,
@@ -98,12 +98,17 @@ curation_dict = dict(
 )
 
 controller = Controller(
-        analyzer, backend="qt", curation=True, curation_data=curation_dict, verbose=True,
+    analyzer,
+    backend="qt",
+    curation=True,
+    curation_data=curation_dict,
+    extra_unit_properties=extra_unit_properties,
+    displayed_unit_properties=['model', 'quality', 'confidence', 'firing_rate', 'snr', 'x', 'y', 'rp_violations']
 )
 
 layout_dict={'zone1': ['unitlist'], 'zone2': [], 'zone3': ['waveform'], 'zone4': ['correlogram'], 'zone5': ['spikeamplitude'], 'zone6': [], 'zone7': [], 'zone8': ['spikerate']}
 
-from pyqtgraph import mkQApp
+
 app = mkQApp()
 win = QtMainWindow(controller, layout_dict=layout_dict, user_settings=None)
 win.closeEvent = functools.partial(my_custom_close_handler, window=win, project_folder=project_folder, save_folder=save_folder, analyzer=analyzer)
@@ -111,8 +116,5 @@ win.closeEvent = functools.partial(my_custom_close_handler, window=win, project_
 win.show()
 app.exec()
 
-print(f"{dir(win.controller)=}")
-
-#win.show()
 
 

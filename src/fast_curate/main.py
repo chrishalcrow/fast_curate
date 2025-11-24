@@ -11,7 +11,7 @@ import pandas as pd
 
 import PyQt5.QtWidgets as QtWidgets
 from PyQt5.QtWidgets import QStyleFactory
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QIcon
 from PyQt5.QtCore import Qt
 
 from train import TrainWindow
@@ -108,7 +108,7 @@ def load_project(folder_name):
 
     for model_folder in model_folders:
 
-        project.models.append(model_folder.name)
+        project.models.append(model_folder)
 
     return project
 
@@ -200,7 +200,6 @@ class MainWindow(QtWidgets.QWidget):
             projectLayout.addWidget(self.change_labels_button,2,1,1,2)
 
         projectWidget.setLayout(projectLayout)
-        
         self.main_layout.addWidget(projectWidget)
 
         ###############
@@ -228,7 +227,7 @@ class MainWindow(QtWidgets.QWidget):
 
         self.saLayout = saLayout
         saWidget.setLayout(saLayout)
-        self.make_curation_button_list(curation=self.curation)
+        self.make_curation_button_list()
 
         ###############
         # TRAIN
@@ -239,13 +238,17 @@ class MainWindow(QtWidgets.QWidget):
 
         self.trainLayout = QtWidgets.QGridLayout()
 
-        trainTitleWidget = QtWidgets.QLabel("3. TRAIN")
+        trainTitleWidget = QtWidgets.QLabel("3. TRAIN or LOAD models")
         trainTitleWidget.setStyleSheet("font-weight: bold; font-size: 20pt;")
         self.trainLayout.addWidget(trainTitleWidget,0,0)
 
         train_button = QtWidgets.QPushButton("Train")
         train_button.clicked.connect(self.show_train_window)
         self.trainLayout.addWidget(train_button,1,0)
+
+        train_button = QtWidgets.QPushButton("+ Load")
+        train_button.clicked.connect(self.selectModelDialog)
+        self.trainLayout.addWidget(train_button,1,1)
 
         trainWidget.setLayout(self.trainLayout)
 
@@ -276,28 +279,23 @@ class MainWindow(QtWidgets.QWidget):
 
         validateWidget.setLayout(self.validateLayout)
 
-        
         self.main_layout.addWidget(saWidget)
         if self.curation:
             self.main_layout.addWidget(trainWidget)
-        # else: 
-        #     self.main_layout.addWidget(applyWidget)
         self.main_layout.addWidget(validateWidget)
 
         ###############
         # CODE BUTTON
         ###############
 
+        print(f"{self.project.models=}")
+
         apply_code_button = QtWidgets.QPushButton("Generate code to apply model to analyzer")
         apply_code_button.clicked.connect(self.make_apply_code)
         self.main_layout.addWidget(apply_code_button)
 
-    def get_local_models(self):
 
-        models_folder = self.output_folder / "models"
-        model_folders = list(models_folder.glob('*'))
 
-        return model_folders
 
     def make_apply_code(self):
 
@@ -347,7 +345,6 @@ class MainWindow(QtWidgets.QWidget):
             else:
                 print(f"Selected directory {selected_directory} is not a SortingAnalyzer.")
 
-    
     def selectModelDialog(self):
         file_dialog = QtWidgets.QFileDialog(self)
         file_dialog.setWindowTitle("Select Directory")
@@ -358,14 +355,13 @@ class MainWindow(QtWidgets.QWidget):
             selected_directory = file_dialog.selectedFiles()[0]
 
             if is_a_model(selected_directory):
-
-                self.local_model = selected_directory
-
+                print("hello adding a model!")
+                self.project.models = [selected_directory] + self.project.models
+                self.make_model_list()
             else:
-
-                print(f"Selected directory {selected_directory} is not a model.")
+                print(f"{selected_directory} is not a UnitRefine model folder.")
             
-    def make_curation_button_list(self, curation=False):
+    def make_curation_button_list(self):
 
         for analyzer_index, (analyzer_name, analyzer) in enumerate(self.project.analyzers.items()):
 
@@ -380,7 +376,7 @@ class MainWindow(QtWidgets.QWidget):
 
                 curate_button = QtWidgets.QPushButton(f'Curate "{selected_directory_text_display}"')
                 curate_button.clicked.connect(partial(self.show_curation_window, selected_directory, analyzer_index))
-                self.saLayout.addWidget(curate_button,4+analyzer_index,0,1,1)
+                self.saLayout.addWidget(curate_button,4+analyzer_index,0)
         
                 curation_output_folder = Path(self.project.folder_name) / Path(f"analyzers/{analyzer_index}_{Path(selected_directory).name}")
                 curation_output_folder.mkdir(exist_ok=True)
@@ -441,10 +437,6 @@ class MainWindow(QtWidgets.QWidget):
         self.combo_box.addItems(model_names)       
         self.validateLayout.addWidget(self.combo_box,2,0)
 
-    def selection_changed(self, text):
-        self.local_model = text
-        print(f"{self.local_model=}")
-
     def show_validate_window(self, analyzer):
 
         analyzer_path = Path(analyzer['path'])
@@ -452,7 +444,9 @@ class MainWindow(QtWidgets.QWidget):
 
         current_model_name = self.combo_box.currentText()
 
-        self.local_model = self.output_folder / "models" / current_model_name
+        self.local_model = [model for model in self.project.models if str(current_model_name) in str(model)][0]
+
+        #self.local_model = self.output_folder / "models" / current_model_name
 
         self.current_predicted_labels = auto_label_units(sorting_analyzer=sorting_analyzer, model_folder=self.local_model, trust_model=True)
 
@@ -465,11 +459,6 @@ class MainWindow(QtWidgets.QWidget):
         # This will block until the external process closes
         subprocess.run([sys.executable, "/Users/christopherhalcrow/Work/fromgit/fast_curate/src/fast_curate/launch_sigui_validate.py", analyzer_path, f'{self.output_folder}', f'{analyzer_in_project}', f'{model_labels_filepath}'])
         print("GUI closed, resuming main app.")
-
-    def set_repo_model(self):
-        self.local_model = None
-        self.repo_model = self.repo_id_button.text()
-
 
 def parse_labels(labels_string):
 
@@ -505,6 +494,10 @@ def main():
 
         app.setStyle(QStyleFactory.create("Fusion"))
 
+        icon_file = Path(__file__).absolute().parent / 'resources' / 'logo.png'
+        if icon_file.exists():
+            app.setWindowIcon(QIcon(str(icon_file)))
+
         custom_font = QFont()
         custom_font.setFamily("courier new")
         app.setFont(custom_font)
@@ -525,6 +518,12 @@ def is_an_analyzer(directory):
     
     return False
 
+def is_a_model(directory):
+
+    if (Path(directory) / "best_model.skops").is_file():
+        return True
+    
+    return False
 
 if __name__ == "__main__":
     main()
